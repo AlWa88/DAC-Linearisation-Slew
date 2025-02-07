@@ -55,9 +55,9 @@ from run_static_model_and_post_processing import run_static_model_and_post_proce
 
 #%% Configure DAC and test conditions
 
-METHOD_CHOICE = 1
+METHOD_CHOICE = 3
 DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
-match 1:
+match 5:
     case 1:
         FS_CHOICE = 4
         DAC_CIRCUIT = 7  # 6 bit spice
@@ -71,15 +71,15 @@ match 1:
         FS_CHOICE = 7
         DAC_CIRCUIT = 9  # 10 bit spice
     case 5:
-        FS_CHOICE = 5
+        FS_CHOICE = 10
         DAC_CIRCUIT = 10  # 6 bit spectre
     case 6:
-        FS_CHOICE = 5
+        FS_CHOICE = 10
         DAC_CIRCUIT = 11  # 10 bit spectre
 
 SINAD_COMP = 1
 
-DAC_CIRCUIT = 7
+# DAC_CIRCUIT = 7
 #DAC_CIRCUIT = 10
 
 PLOTS = 0
@@ -288,16 +288,16 @@ match SC.lin.method:
         # The feedback generates an actuation signal that may cause the
         # quantiser to saturate if there is no "headroom"
         # Also need room for re-quantisation dither
-        if QConfig == qs.w_16bit_SPICE: HEADROOM = 10  # 16 bit DAC
-        elif QConfig == qs.w_6bit_ARTI: HEADROOM = 15  # 6 bit DAC
-        elif QConfig == qs.w_6bit_ZTC_ARTI: HEADROOM = 10#15  # 6 bit DAC
-        elif QConfig == qs.w_10bit_ARTI: HEADROOM = 15  # 10 bit DAC
-        elif QConfig == qs.w_10bit_ZTC_ARTI: HEADROOM = 5#15  # 10 bit DAC
-        elif QConfig == qs.w_16bit_ARTI: HEADROOM = 10  # 16 bit DAC
-        elif QConfig == qs.w_6bit_2ch_SPICE: HEADROOM = 5  # 6 bit DAC
-        elif QConfig == qs.w_16bit_2ch_SPICE: HEADROOM = 1  # 16 bit DAC
-        elif QConfig == qs.w_10bit_2ch_SPICE: HEADROOM = 5  # 10 bit DAC
-        elif QConfig == qs.w_16bit_6t_ARTI: HEADROOM = 1  # 16 bit DAC
+        if QConfig == qs.w_16bit_SPICE:         HEADROOM = 10   # 16 bit DAC
+        elif QConfig == qs.w_6bit_ARTI:         HEADROOM = 15   # 6 bit DAC
+        elif QConfig == qs.w_6bit_ZTC_ARTI:     HEADROOM = 10   # 15 # 6 bit DAC
+        elif QConfig == qs.w_10bit_ARTI:        HEADROOM = 15   # 10 bit DAC
+        elif QConfig == qs.w_10bit_ZTC_ARTI:    HEADROOM = 5    # 15 # 10 bit DAC
+        elif QConfig == qs.w_16bit_ARTI:        HEADROOM = 10   # 16 bit DAC
+        elif QConfig == qs.w_6bit_2ch_SPICE:    HEADROOM = 5    # 6 bit DAC
+        elif QConfig == qs.w_16bit_2ch_SPICE:   HEADROOM = 1    # 16 bit DAC
+        elif QConfig == qs.w_10bit_2ch_SPICE:   HEADROOM = 5    # 10 bit DAC
+        elif QConfig == qs.w_16bit_6t_ARTI:     HEADROOM = 1    # 16 bit DAC
         else: sys.exit('NSDCAL: Missing config.')
 
         Xscale = 100 - HEADROOM

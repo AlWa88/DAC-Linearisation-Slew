@@ -116,27 +116,27 @@ def plot_inl(QConfig=qs.w_16bit_NI_card, Ch_sel=0):
     #rc('font',**{'family':'serif','serif':['Times']})
     #rc('text', usetex=False)
 
-    plt.figure(10)
+    fig = plt.figure(10)
     plt.plot(qs, LVLS1/Qstep, label='Channel 1')
     plt.plot(qs, LVLS2/Qstep, label='Channel 2')
     plt.legend()
     plt.xlabel("Input code")
     plt.ylabel("Output (least significant bits)")
     plt.grid()
-    plt.show()
+    # plt.show()
 
-    plt.figure(20)
+    fig = plt.figure(20)
     plt.plot(qs, signal.detrend(LVLS1)/Qstep, label='Channel 1')
     plt.plot(qs, signal.detrend(LVLS2)/Qstep, label='Channel 2')
     plt.legend()
     plt.xlabel("Input code")
     plt.ylabel("INL (least significant bits)")
     plt.grid()
-    plt.show()
+    # plt.show()
 
-    #plt.savefig('figures/INL_plot.pdf', format='pdf', bbox_inches='tight')
-    #plt.savefig('figures/INL_plot.svg', format='svg', bbox_inches='tight')
-    #fig.savefig('Stylized Plots.png', dpi=300, bbox_inches='tight', transparent=True)
+    fig.savefig('figures/INL_plot.pdf', format='pdf', bbox_inches='tight')
+    fig.savefig('figures/INL_plot.svg', format='svg', bbox_inches='tight')
+    # plt.savefig('Stylized Plots.png', dpi=300, bbox_inches='tight', transparent=True)
 
 
 def generate_physcal_lut(QConfig=qs.w_16bit_NI_card, UNIFORM_SEC=1, SAVE_LUT=0):
