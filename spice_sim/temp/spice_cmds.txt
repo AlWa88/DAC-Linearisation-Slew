@@ -2,6 +2,6 @@
 .option method=trap TRTOL=5 gmin=1e-19 reltol=200u abstol=100f vntol=100n seed=1
 
 .control
-tran 10u 0.004999139764764765
+tran 10u 0.0049999951122998
 write $inputdir/cs_dac_10bit_2ch_TRAN_ngspice_batch.bin v(out1) v(out2)
 .endc

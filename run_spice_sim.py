@@ -51,6 +51,17 @@ codes_dirs = os.listdir(method_d)
 if not codes_dirs:  # list empty?
     raise SystemExit('No codes found.')
 
+for d_index, codes_d in enumerate(codes_dirs):
+    print('Directory index {}'.format(str(d_index)))
+
+    # read pickled (marshalled) state/config object
+    with open(os.path.join(method_d, codes_d, 'sim_config.pickle'), 'rb') as fin:
+        SC = pickle.load(fin)
+
+    run_info = [['DAC config', 'Method', 'Model', 'Fs', 'Fc', 'X scale', 'Fx'],
+            [str(SC.qconfig), str(SC.lin), str(SC.dac), f'{Float(SC.fs):.2h}', f'{Float(SC.fc):.1h}', f'{Float(SC.ref_scale):.1h}%', f'{Float(SC.ref_freq):.1h}']]
+    print(tabulate(run_info))
+
 codes_d = codes_dirs[0]  ###################### pick run
 
 # read pickled (marshalled) state/config object
@@ -115,21 +126,19 @@ run_info = [['DAC config', 'Method', 'Model', 'Fs', 'Fc', 'X scale', 'Fx'],
 print(tabulate(run_info))
 
 ic = input("Enter 'Y' to continue: ")
-if ic != 'Y':
-    exit()
+if ic == 'Y':    
+    spice_path = 'ngspice'  # 
+    #out_d = os.path.join('spice_sim', 'output')
 
-spice_path = 'ngspice'  # 
-#out_d = os.path.join('spice_sim', 'output')
-
-#print('Running SPICE...')
-if True:  # run ngspice sequentially for ech channel
-    if SEPARATE_FILE_PER_CHANNEL:
-        for k in range(0,Nch):
-            run_spice_sim(spicef_list[k], outputf_list[k], spice_case_d, spice_path, run_spice=True)
-    else:
-        run_spice_sim(spicef_list[0], outputf_list[0], spice_case_d, spice_path, run_spice=True)
-else:  # use shell escape interface to run ngspice as parallel processes
-    run_spice_sim_parallel(spicef_list, outputf_list, out_d, spice_path)
+    #print('Running SPICE...')
+    if True:  # run ngspice sequentially for ech channel
+        if SEPARATE_FILE_PER_CHANNEL:
+            for k in range(0,Nch):
+                run_spice_sim(spicef_list[k], outputf_list[k], spice_case_d, spice_path, run_spice=True)
+        else:
+            run_spice_sim(spicef_list[0], outputf_list[0], spice_case_d, spice_path, run_spice=True)
+    else:  # use shell escape interface to run ngspice as parallel processes
+        run_spice_sim_parallel(spicef_list, outputf_list, out_d, spice_path)
     
 
 
