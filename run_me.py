@@ -55,9 +55,9 @@ from run_static_model_and_post_processing import run_static_model_and_post_proce
 
 #%% Configure DAC and test conditions
 
-METHOD_CHOICE = 6
+METHOD_CHOICE = 7
 DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
-match 4:
+match 3:
     case 1:
         FS_CHOICE = 4
         DAC_CIRCUIT = 7  # 6 bit spice
@@ -79,7 +79,7 @@ match 4:
 
 SINAD_COMP = 1
 
-PLOTS = 0
+PLOTS = 1
 
 # Test/reference signal spec. (to be recovered on the output)
 Xref_SCALE = 100  # %
@@ -162,7 +162,8 @@ match 2:
         if SINAD_COMP_SEL == sinad_comp.FFT:
             Np = 200  # no. of periods for carrier
         else:
-            Np = 5  # no. of periods for carrier (IEEE recommended for curve-fit)
+            Np = 5  # no. of periods for carrier (IEEE recommended for curve-fit is 5)
+            Np = 3
 
 Npt = 1  # no. of test signal periods to use to account for transients
 Ncyc = Np + 2*Npt
@@ -308,19 +309,15 @@ match SC.lin.method:
         MLns = ML[0]  # measured output levels (convert from 2d to 1d)
 
         # Adding some "measurement/model error" in the levels
-        
         # 6-bit DAC
         if QConfig in [qs.w_6bit_ARTI, qs.w_6bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI]:
             ML_err_rng = Qstep/pow(2, 12) # (try to emulate 18-bit measurements (add 12 bit))
-            
         # 10-bit DAC
         elif QConfig in [qs.w_10bit_2ch_SPICE, qs.w_10bit_ARTI, qs.w_10bit_ZTC_ARTI]:
             ML_err_rng = Qstep/pow(2, 8) # (try to emulate 18-bit measurements (add 8 bit))
-
         # 16-bit DAC
         elif QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_16bit_6t_ARTI]:
             ML_err_rng = Qstep/pow(2, 2) # (try to emulate 18-bit measurements (add 2 bit))
-        
         else:
             sys.exit('NSDCAL: Unknown QConfig for ML error')
         
@@ -659,15 +656,15 @@ match SC.lin.method:
         elif QConfig == qs.w_6bit_ARTI: HEADROOM = 0*15  # 6 bit DAC
         elif QConfig == qs.w_6bit_ZTC_ARTI: HEADROOM = 15  # 6 bit DAC
         elif QConfig == qs.w_16bit_ARTI: HEADROOM = 1  # 16 bit DAC
-        elif QConfig == qs.w_6bit_2ch_SPICE: HEADROOM = 0  # 6 bit DAC
+        elif QConfig == qs.w_6bit_2ch_SPICE: HEADROOM = 5  # 6 bit DAC
         elif QConfig == qs.w_16bit_2ch_SPICE: HEADROOM = 10  # 16 bit DAC
-        elif QConfig == qs.w_10bit_2ch_SPICE: HEADROOM = 5  # 10 bit DAC
+        elif QConfig == qs.w_10bit_2ch_SPICE: HEADROOM = 0  # 10 bit DAC
         elif QConfig == qs.w_10bit_ARTI: HEADROOM = 0* 10  # 10 bit DAC
         elif QConfig == qs.w_10bit_ZTC_ARTI: HEADROOM = 0*10  # 10 bit DAC
         else: sys.exit('MPC: Missing config.')
 
         Xscale = 100 - HEADROOM
-        X = (Xscale/100)*Xref  # input
+        X = (Xscale/100)*Xref + Dq # input
 
         SC.ref_scale = Xscale  # save param.
 
@@ -679,15 +676,28 @@ match SC.lin.method:
         ML = get_measured_levels(QConfig, SC.lin.method)
         MLns = ML[0]
 
-
         # Adding some "measurement/model error" in the levels
-        if QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI, qs.w_10bit_ZTC_ARTI]:
-            ML_err_rng = Qstep  # 16 bit DAC
-        elif QConfig in [qs.w_6bit_ARTI, qs.w_6bit_2ch_SPICE, qs.w_10bit_ARTI]:
-            ML_err_rng = Qstep/1024 # 6 bit DAC
-        else:
-            sys.exit('Unknown QConfig')
+        #if QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI, qs.w_10bit_ZTC_ARTI]:
+        #    ML_err_rng = Qstep  # 16 bit DAC
+        #elif QConfig in [qs.w_6bit_ARTI, qs.w_6bit_2ch_SPICE, qs.w_10bit_ARTI]:
+        #    ML_err_rng = Qstep/1024 # 6 bit DAC
+        #else:
+        #    sys.exit('Unknown QConfig')
         
+        # Adding some "measurement/model error" in the levels
+        # 6-bit DAC
+        if QConfig in [qs.w_6bit_ARTI, qs.w_6bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI]:
+            ML_err_rng = 0*Qstep/pow(2, 12) # (try to emulate 18-bit measurements (add 12 bit))
+        # 10-bit DAC
+        elif QConfig in [qs.w_10bit_2ch_SPICE, qs.w_10bit_ARTI, qs.w_10bit_ZTC_ARTI]:
+            ML_err_rng = Qstep/pow(2, 8) # (try to emulate 18-bit measurements (add 8 bit))
+        # 16-bit DAC
+        elif QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_16bit_6t_ARTI]:
+            ML_err_rng = Qstep/pow(2, 2) # (try to emulate 18-bit measurements (add 2 bit))
+        else:
+            sys.exit('MPC: Unknown QConfig for ML error')
+
+
         MLns_err = np.random.uniform(-ML_err_rng, ML_err_rng, MLns.shape)
         MLns_E = MLns + MLns_err
  
@@ -698,8 +708,9 @@ match SC.lin.method:
         QMODEL = 2 #: 1 - no calibration, 2 - Calibration
 
         # Run MPC Binary variables
-        MPC = MPC_BIN(Nb, Qstep, QMODEL, A1, B1, C1, D1)
-        C = MPC.get_codes(N_PRED, X, YQns, MLns_E)  ##### output codes
+        #MPC_OBJ = MPC_BIN(Nb, Qstep, QMODEL, A1, B1, C1, D1)
+        MPC_OBJ = MPC(Nb, Qstep, QMODEL, A1, B1, C1, D1)
+        C = MPC_OBJ.get_codes(N_PRED, X, YQns, MLns_E)  ##### output codes
 
         t = t[0:C.size]
 
@@ -852,5 +863,8 @@ with open(os.path.join(codes_d, config_f + '.pickle'), 'wb') as fout:  # marshal
 codes_f = codes_d + 'codes'
 np.save(codes_f, C)
 
+# %% 
 if (DAC_MODEL_CHOICE == 1):
     run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=PLOTS)
+
+# %%

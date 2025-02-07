@@ -45,7 +45,7 @@ class MPC:
 
     
     def q_scaling(self, X):
-        Xs = X.squeeze() /self.Qstep  + 2**(self.Nb-1)
+        Xs = X.squeeze()/self.Qstep  + 2**(self.Nb-1)
         return Xs
 
     
@@ -53,34 +53,40 @@ class MPC:
     def get_codes(self, N_PRED, Xcs, YQns, MLns ):
 
         # Scale the input to the quantizer levels to run it as an MILP
-        Xs = Xcs.squeeze()
-        X = Xs/self.Qstep + 2**(self.Nb-1)
+        #Xs = Xcs.squeeze()
+        #X = Xs/self.Qstep + 2**(self.Nb-1)
 
         X = self.q_scaling(Xcs)
+        
+        #  Scale levels  
+        if False:
+            match self.QMODEL:
+                case 1:
+                    QLS = (YQns /self.Qstep ) + 2**(self.Nb-1) - 1/2
+                    QLS = QLS.squeeze()
+                case 2:
+                    QLS = (MLns /self.Qstep ) + 2**(self.Nb-1) -1/2
+                    QLS = QLS.squeeze()
 
-        #  Scale ideal levels  
-        # match self.QMODEL:
-        #     case 1:
-        #         QLS = (YQns /self.Qstep ) + 2**(self.Nb-1) -1/2
-        #         QLS = QLS.squeeze()
-        #     case 2:
-        #         QLS = (MLns /self.Qstep ) + 2**(self.Nb-1) -1/2
-        #         QLS = QLS.squeeze()
-        INL = YQns - MLns
+        if False:
+            INL = (YQns - MLns)/self.Qstep
 
-        match self.QMODEL:
-            case 1:
-                QLS = (YQns /self.Qstep ) + 2**(self.Nb-1) -1/2
-                QLS = QLS.squeeze()
-            case 2:
-                QLS = (YQns /self.Qstep ) + 2**(self.Nb-1) -1/2
-                QLS = QLS + INL
-                QLS = QLS.squeeze()
-        # match self.QMODEL:
-        #     case 1:
-        #         QLS = self.q_scaling(YQns.reshape(1,-1)).squeeze()
-        #     case 2:
-        #         QLS = self.q_scaling(MLns.reshape(1,-1)).squeeze()
+            match self.QMODEL:
+                case 1:
+                    QLS = (YQns/self.Qstep) + 2**(self.Nb-1) -1/2
+                    QLS = QLS.squeeze()
+                case 2:
+                    QLS = (YQns/self.Qstep) + 2**(self.Nb-1) -1/2
+                    QLS = QLS + INL
+                    QLS = QLS.squeeze()
+        
+        if True:
+            match self.QMODEL:
+                case 1:
+                    QLS = self.q_scaling(YQns.reshape(1,-1)).squeeze()
+                case 2:
+                    QLS = self.q_scaling(MLns.reshape(1,-1)).squeeze()
+
         # Storage container for code
         C = []
 
@@ -92,17 +98,15 @@ class MPC:
 
         # Initial state
         init_state = np.zeros(x_dim).reshape(-1,1)
-
+        
         # MPC loop
         for j in tqdm.tqdm(range(len_MPC)):
-
-            env = gp.Env(empty=True)
-            env.setParam("OutputFlag",0)
-            env.start()
+            
             m = gp.Model("MPC- INL")
-            u = m.addMVar(N_PRED, vtype=GRB.INTEGER, name= "u", lb = 0, ub =  2**self.Nb-1) # control variable
-            x = m.addMVar((x_dim*(N_PRED+1),1), vtype= GRB.CONTINUOUS, lb = -GRB.INFINITY, ub = GRB.INFINITY, name = "x")  # State varible 
+            m.setParam("OutputFlag", 0)
 
+            u = m.addMVar(N_PRED, vtype=GRB.INTEGER, name= "u", lb = 0, ub =  2**self.Nb-1) # control variable
+            x = m.addMVar((x_dim*(N_PRED+1),1), vtype= GRB.CONTINUOUS, lb = -GRB.INFINITY, ub = GRB.INFINITY, name = "x")  # State variable 
 
             # Add objective function
             Obj = 0

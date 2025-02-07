@@ -78,14 +78,18 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
         K = np.ones((Nch,1))
         K[1] = 0.0  # null one channel (want single channel resp.)
     elif SC.lin.method == lm.DEM:
-        #K = np.ones((Nch,1))
         K = 1/Nch
     elif SC.lin.method == lm.PHYSCAL:
         K = np.ones((Nch,1))
         K[1] = get_physcal_gain(QConfig)
     elif SC.lin.method == lm.NSDCAL:
-        K = np.ones((Nch,1))
-        #K[1] = 0.0  # null one channel (want single channel resp.)
+        Nch_C = C.shape[0]
+        K = np.ones((Nch_C,1))
+        K[1] = 0.0
+    elif SC.lin.method == lm.MPC:
+        Nch_C = C.shape[0]
+        K = np.ones((Nch_C,1))
+        K[1] = 0.0
     elif SC.lin.method == lm.ILC:
         K = np.ones((Nch,1))
         K[1] = 0.0  # null one channel (want single channel resp.)

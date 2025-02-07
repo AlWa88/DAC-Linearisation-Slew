@@ -9,7 +9,6 @@
 
 # %%
 import numpy as np
-import os
 from matplotlib import pyplot as plt
 
 # %% DAC  and sampling frequency
@@ -21,10 +20,10 @@ DAC_6bit_PRO_Fs_209MHz = 5
 DAC_10bit_PRO_Fs_209MHz = 6
 
 # %%
-match 5:
+match 6:
     case 1: # 6 bit SkyWater at 1.02 Mhz 
         tech = 'SkyWater'
-        node = 'SKY130'
+        # node = 'SKY130'
         method0 = 'static'
         method1 = 'spice'
 
@@ -59,7 +58,7 @@ match 5:
 
     case 2: # 6-bit SkyWater at 32.07  
         tech = 'SkyWater'
-        node = 'SKY130'
+        # node = 'SKY130'
         method0 = 'static'
         method1 = 'spice'
 
@@ -94,7 +93,7 @@ match 5:
 
     case 3: # 10 bit SkyWater at 1.02 Mhz 
         tech = 'SkyWater'
-        node = 'SKY130'
+        # node = '130 nm'
         method0 = 'static'
         method1 = 'spice'
 
@@ -130,7 +129,7 @@ match 5:
 
     case 4: #10 bit SkyWater at 32.07 MHz,
         tech = 'SkyWater'
-        node = 'SKY130'
+        # node = '130 nm'
         method0 = 'static'
         method1 = 'spice'
 
@@ -164,8 +163,8 @@ match 5:
         lin_methods =  ['PHYSCAL', 'NSDCAL', 'PHFD', 'SHPD', 'DEM', 'MHOQ']
     
     case 5: ## 6 bit ZTC ARTI
-        tech = 'Proprietary'
-        node = '130 nm'
+        tech = 'ZTCARTI'
+        # node = 'SKY130'
         method0 = 'static'
         method1 = 'spectre'
 
@@ -201,8 +200,8 @@ match 5:
         lin_methods =  ['PHYSCAL', 'NSDCAL', 'PHFD', 'SHPD', 'DEM','MHOQ']
     
     case 6: # 10 bit ZTC ARTI
-        tech = 'Proprietary'
-        node = '130 nm'
+        tech = 'ZTCARTI '
+        # node = 'SKY130'
         method0 = 'static'
         method1 = 'sprectre'
 
@@ -248,7 +247,7 @@ bar3 = [x + barWidth for x in bar2]
 # % Draw plot
 fig, ax = plt.subplots(figsize = (7,5))
 plt.axhline(y = 0, color = 'black', linestyle = '-')
-b1 = plt.bar(bar2, static_gains,    width = barWidth, color = 'tab:cyan',   edgecolor = 'white', label = method0)
+b1 = plt.bar(bar2, static_gains,    width = barWidth, color = 'tab:blue',   edgecolor = 'white', label = method0)
 b2 = plt.bar(bar3, mos_model_gains, width = barWidth, color = 'tab:orange', edgecolor = 'white', label = method1)
 # match methods:
 #     case "static-spice":
@@ -262,16 +261,14 @@ plt.ylabel('ENOB gain', fontsize = 13)
 pos_xticks = np.array([r + barWidth for r in range(len(static_gains))]) + barWidth/2
 plt.xticks(pos_xticks, lin_methods , fontsize = 13)
 
-fontsize = 13
-
 ah = []
 for rect in b1 + b2 :
     height = rect.get_height()
     ah.append(height)
     if height > 0 :
-        plt.text(rect.get_x() + rect.get_width()/2.0 - 0.075, 0.3, f'{height:.2f} bits', rotation=90, fontsize=fontsize)
+        plt.text(rect.get_x() + rect.get_width()/2.0 - 0.03, 0.3, f'{height:.2f} bits', rotation = 90, fontsize  = 13)        
     if height < 0 :
-        plt.text(rect.get_x() + rect.get_width()/2.0 - 0.075, 0.3, f'{height:.2f} bits', rotation=90, fontsize=fontsize)
+        plt.text(rect.get_x() + rect.get_width()/2.0 - 0.03, 0.3, f'{height:.2f} bits', rotation = 90, fontsize  = 13)        
 
 # Adjust location of the value Fs    
 # ax.text(1, -1.2,  f'Fs = {Fs} MHz',  ha='right', va='bottom', fontsize = "20")
@@ -290,10 +287,10 @@ for rect in b1 + b2 :
 #     if height < 0 :
 #         plt.text(rect.get_x() + rect.get_width() / 2.0 -0.03, 0.5, '1 MHz', rotation = 90, fontsize = 13)        
 
-plt.title(f"{int(Nb)}-bit DAC | Technology: {tech} {node} | Fs: {Fs} MHz", fontsize = "13")
+plt.title(f"{int(Nb)}-bit DAC | Technology: {tech} | Fs: {Fs} MHz", fontsize = "13")
 
 # plt.title(f"{int(Nb)}-bit DAC | Technology: {tech} {node} | Fs: {Fs} MHz\n{method0} baseline: {static_baseline} bits | {method1} baseline: {mos_model_baseline} bits", fontsize = "13")
-plt.legend(fontsize="13", loc='upper left')
+plt.legend(fontsize="13", loc='upper right')
 ax.set_axisbelow(True)
 ax.grid(zorder=0, axis = "y")
 fig.tight_layout()
@@ -308,7 +305,7 @@ fig.tight_layout()
 # %%
 
 # fname = f"Gainplot_{Nb}b_{tech}_{node}_{int(Fs)}MHz_{methods}".replace(" ", "_")
-fname = f"Gainplot_{Nb}b_{tech}_{node}_{int(Fs)}MHz_{methods}".replace(" ", "_")
+fname = f"Gainplot_{Nb}b_{tech}_{int(Fs)}MHz_{methods}".replace(" ", "_")
 fname = str(fname)
 
 script_dir = os.path.dirname(__file__)

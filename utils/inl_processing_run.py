@@ -21,7 +21,7 @@ from utils.inl_processing import generate_physcal_lut, plot_inl
 from utils.quantiser_configurations import qs
 from utils.spice_utils import run_spice_sim, read_spice_bin_file_with_most_recent_timestamp
 
-match 2:
+match 0:
     case 1: generate_physcal_lut(QConfig=qs.w_6bit_2ch_SPICE, UNIFORM_SEC=0, SAVE_LUT=True) # Trond 2ch 6bit
     case 2: generate_physcal_lut(QConfig=qs.w_10bit_2ch_SPICE, UNIFORM_SEC=1, SAVE_LUT=True) # Trond 2ch 10bit
     case 3: generate_physcal_lut(QConfig=qs.w_6bit_ZTC_ARTI, UNIFORM_SEC=0, SAVE_LUT=True) # ZTC ARTI 6bit
@@ -34,7 +34,7 @@ match 2:
 #plot_inl(QConfig=qws.w_6bit_ARTI, Ch_sel=0)
 #plot_inl(QConfig=qws.w_6bit_ARTI, Ch_sel=1)
 #plot_inl(QConfig=qws.w_16bit_6t_ARTI, Ch_sel=0)
-match 0:
+match 1:
     case 1: plot_inl(QConfig=qs.w_6bit_2ch_SPICE, Ch_sel=0)
     case 2: plot_inl(QConfig=qs.w_10bit_2ch_SPICE, Ch_sel=0)
     case 3: plot_inl(QConfig=qs.w_6bit_ZTC_ARTI, Ch_sel=0)

@@ -66,17 +66,14 @@ class MPC_BIN:
         # Initial state
         init_state = np.zeros(x_dim).reshape(-1,1)
 
-        
-
         # MPC loop
         for j in tqdm.tqdm(range(len_MPC)):
-            env = gp.Env(empty=True)
-            env.setParam("OutputFlag",0)
-            env.start()
-            m = gp.Model("MPC- INL", env = env)
-            u = m.addMVar((2**self.Nb, N_PRED), vtype=GRB.BINARY, name= "u") # control variable
-            x = m.addMVar((x_dim*(N_PRED+1),1), vtype= GRB.CONTINUOUS, lb = -GRB.INFINITY, ub = GRB.INFINITY, name = "x")  # State varible 
+            
+            m = gp.Model("MPC- INL")
+            m.setParam("OutputFlag", 0)
 
+            u = m.addMVar((2**self.Nb, N_PRED), vtype=GRB.BINARY, name= "u") # control variable
+            x = m.addMVar((x_dim*(N_PRED+1),1), vtype= GRB.CONTINUOUS, lb = -GRB.INFINITY, ub = GRB.INFINITY, name = "x")  # State variable 
 
             # Add objective function
             Obj = 0
@@ -86,7 +83,8 @@ class MPC_BIN:
             for i in range(N_PRED):
                 k = x_dim * i
                 st = x[k:k+x_dim]
-                bin_con =  YQns.reshape(1,-1) @ u[:,i].reshape(-1,1) 
+                #bin_con =  YQns.reshape(1,-1) @ u[:,i].reshape(-1,1)
+                bin_con =  QL.reshape(1,-1) @ u[:,i].reshape(-1,1)
                 con = bin_con - Xcs[j+i]
 
                 # Objective update

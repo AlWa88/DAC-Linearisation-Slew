@@ -15,12 +15,14 @@ prevents good debugging of ngspice execution.
 @license: BSD 3-Clause
 """
 
-%reload_ext autoreload
-%autoreload 2
+#%reload_ext autoreload
+#%autoreload 2
 
 import os
 import pickle
 import numpy as np
+from prefixed import Float
+from tabulate import tabulate
 
 from utils.test_util import sim_config
 from utils.quantiser_configurations import quantiser_configurations, qs
@@ -29,7 +31,7 @@ from utils.spice_utils import run_spice_sim, run_spice_sim_parallel, gen_spice_s
 from utils.inl_processing import get_physcal_gain
 
 # choose method
-METHOD_CHOICE = 6
+METHOD_CHOICE = 7
 match METHOD_CHOICE:
     case 1: RUN_LM = lm.BASELINE
     case 2: RUN_LM = lm.PHYSCAL
@@ -108,6 +110,13 @@ else:
     spicef_list.append(spicef)  # list with 1 entry
     outputf_list.append(outputf)
 
+run_info = [['DAC config', 'Method', 'Model', 'Fs', 'Fc', 'X scale', 'Fx'],
+            [str(SC.qconfig), str(SC.lin), str(SC.dac), f'{Float(SC.fs):.2h}', f'{Float(SC.fc):.1h}', f'{Float(SC.ref_scale):.1h}%', f'{Float(SC.ref_freq):.1h}']]
+print(tabulate(run_info))
+
+ic = input("Enter 'Y' to continue: ")
+if ic != 'Y':
+    exit()
 
 spice_path = 'ngspice'  # 
 #out_d = os.path.join('spice_sim', 'output')

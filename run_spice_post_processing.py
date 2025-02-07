@@ -24,7 +24,7 @@ from utils.test_util import sim_config, sinad_comp, test_signal
 from utils.inl_processing import get_physcal_gain
 
 # choose method
-METHOD_CHOICE = 6
+METHOD_CHOICE = 7
 match METHOD_CHOICE:
     case 1: RUN_LM = lm.BASELINE
     case 2: RUN_LM = lm.PHYSCAL
@@ -91,8 +91,13 @@ if Nbf == 1:  # may contain several channels in ngspice bin file
         K = np.ones((Nch,1))
         K[1] = get_physcal_gain(QConfig)
     elif SC.lin.method == lm.NSDCAL:
-        K = np.ones((Nch,1))
-        K[1] = 0.0  # null one channel (want single channel resp.)
+        Nch_C = 2
+        K = np.ones((Nch_C,1))
+        K[1] = 0.0
+    elif SC.lin.method == lm.MPC:
+        Nch_C = 2
+        K = np.ones((Nch_C,1))
+        K[1] = 0.0
     elif SC.lin.method == lm.ILC:
         K = np.ones((Nch,1))
         K[1] = 0.0  # null one channel (want single channel resp.)
