@@ -17,6 +17,7 @@ from matplotlib import pyplot as plt
 from prefixed import Float
 from tabulate import tabulate
 
+from utils.results import handle_results
 from utils.spice_utils import run_spice_sim, run_spice_sim_parallel, gen_spice_sim_file, read_spice_bin_file, process_sim_output
 from LM.lin_method_util import lm, dm
 from utils.test_util import sim_config, sinad_comp, test_signal
@@ -27,10 +28,10 @@ METHOD_CHOICE = 6
 match METHOD_CHOICE:
     case 1: RUN_LM = lm.BASELINE
     case 2: RUN_LM = lm.PHYSCAL
-    case 3: RUN_LM = lm.DEM
-    case 4: RUN_LM = lm.NSDCAL
+    case 3: RUN_LM = lm.NSDCAL
+    case 4: RUN_LM = lm.PHFD
     case 5: RUN_LM = lm.SHPD
-    case 6: RUN_LM = lm.PHFD
+    case 6: RUN_LM = lm.DEM
     case 7: RUN_LM = lm.MPC # lm.MPC or lm.MHOQ
     case 8: RUN_LM = lm.ILC
     case 9: RUN_LM = lm.ILC_SIMP
@@ -80,17 +81,24 @@ if Nbf == 1:  # may contain several channels in ngspice bin file
     print(Nch)
 
     # Summation stage
-    if SC.lin.method == lm.BASELINE or SC.lin.method == lm.ILC:
+    if SC.lin.method == lm.BASELINE:
         K = np.ones((Nch,1))
         K[1] = 0.0  # null one channel (want single channel resp.)
     elif SC.lin.method == lm.DEM:
-        K = np.ones((Nch,1))
+        #K = np.ones((Nch,1))
+        K = 1/Nch
     elif SC.lin.method == lm.PHYSCAL:
         K = np.ones((Nch,1))
         K[1] = get_physcal_gain(QConfig)
+    elif SC.lin.method == lm.NSDCAL:
+        K = np.ones((Nch,1))
+        K[1] = 0.0  # null one channel (want single channel resp.)
+    elif SC.lin.method == lm.ILC:
+        K = np.ones((Nch,1))
+        K[1] = 0.0  # null one channel (want single channel resp.)
     else:
         K = 1/Nch
-    
+        
     print('Summing gain:')
     print(K)
 
@@ -118,9 +126,12 @@ ym_avg, ENOB_M = process_sim_output(t, ym, Fc, Fs_, Nf, TRANSOFF, sinad_comp.CFI
 plt.plot(t[TRANSOFF:-TRANSOFF],ym[TRANSOFF:-TRANSOFF])
 plt.plot(t[TRANSOFF:-TRANSOFF],ym_avg[TRANSOFF:-TRANSOFF])
 
-results_tab = [['DAC config', 'Method', 'Model', 'Fs', 'Fc', 'X scale', 'Fx', 'ENOB'],
-    [str(SC.qconfig), str(SC.lin), str(SC.dac), f'{Float(SC.fs):.2h}', f'{Float(SC.fc):.1h}', f'{Float(SC.ref_scale):.1h}%', f'{Float(SC.ref_freq):.1h}', f'{Float(ENOB_M):.3h}']]
-print(tabulate(results_tab))
+SC.dac = dm(dm.SPICE)
+handle_results(SC, ENOB_M)
+
+#results_tab = [['DAC config', 'Method', 'Model', 'Fs', 'Fc', 'X scale', 'Fx', 'ENOB'],
+#    [str(SC.qconfig), str(SC.lin), str(SC.dac), f'{Float(SC.fs):.2h}', f'{Float(SC.fc):.1h}', f'{Float(SC.ref_scale):.1h}%', f'{Float(SC.ref_freq):.1h}', f'{Float(ENOB_M):.3h}']]
+#print(tabulate(results_tab))
 
 if False:
 

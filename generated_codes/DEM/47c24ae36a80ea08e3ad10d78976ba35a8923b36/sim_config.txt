@@ -1,7 +1,7 @@
-9
-BASELINE
+13
+DEM
 static
-Fs=1M
+Fs=33M
 Fc=100k
 Nf=3
 Xs=100

@@ -8,8 +8,8 @@
 """
 
 # %%
-# %reload_ext autoreload
-# %autoreload 2
+%reload_ext autoreload
+%autoreload 2
 
 # Imports
 import sys
@@ -55,9 +55,9 @@ from run_static_model_and_post_processing import run_static_model_and_post_proce
 
 #%% Configure DAC and test conditions
 
-METHOD_CHOICE = 3
+METHOD_CHOICE = 6
 DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
-match 5:
+match 4:
     case 1:
         FS_CHOICE = 4
         DAC_CIRCUIT = 7  # 6 bit spice
@@ -78,9 +78,6 @@ match 5:
         DAC_CIRCUIT = 11  # 10 bit spectre
 
 SINAD_COMP = 1
-
-# DAC_CIRCUIT = 7
-#DAC_CIRCUIT = 10
 
 PLOTS = 0
 
@@ -267,9 +264,9 @@ match SC.lin.method:
         X = (Xscale/100)*Xref + Dq  # input
 
         C = dem(X, Rng, Nb)  ##### output codes
-            
+
+        Nch = 2  # number of physical channels  
         # two identical, ideal channels
-        # Nch = 2  # number of physical channels
         # YQ = matlib.repmat(YQ, 2, 1)
 
     case lm.NSDCAL:  # noise shaping with digital calibration
@@ -288,13 +285,13 @@ match SC.lin.method:
         # The feedback generates an actuation signal that may cause the
         # quantiser to saturate if there is no "headroom"
         # Also need room for re-quantisation dither
-        if QConfig == qs.w_16bit_SPICE:         HEADROOM = 10   # 16 bit DAC
+        if   QConfig == qs.w_16bit_SPICE:       HEADROOM = 10   # 16 bit DAC
         elif QConfig == qs.w_6bit_ARTI:         HEADROOM = 15   # 6 bit DAC
-        elif QConfig == qs.w_6bit_ZTC_ARTI:     HEADROOM = 10   # 15 # 6 bit DAC
+        elif QConfig == qs.w_6bit_ZTC_ARTI:     HEADROOM = 10   #15  # 6 bit DAC
         elif QConfig == qs.w_10bit_ARTI:        HEADROOM = 15   # 10 bit DAC
-        elif QConfig == qs.w_10bit_ZTC_ARTI:    HEADROOM = 5    # 15 # 10 bit DAC
+        elif QConfig == qs.w_10bit_ZTC_ARTI:    HEADROOM = 5    #15  # 10 bit DAC
         elif QConfig == qs.w_16bit_ARTI:        HEADROOM = 10   # 16 bit DAC
-        elif QConfig == qs.w_6bit_2ch_SPICE:    HEADROOM = 5    # 6 bit DAC
+        elif QConfig == qs.w_6bit_2ch_SPICE:    HEADROOM = 10   # 6 bit DAC
         elif QConfig == qs.w_16bit_2ch_SPICE:   HEADROOM = 1    # 16 bit DAC
         elif QConfig == qs.w_10bit_2ch_SPICE:   HEADROOM = 5    # 10 bit DAC
         elif QConfig == qs.w_16bit_6t_ARTI:     HEADROOM = 1    # 16 bit DAC
@@ -317,7 +314,7 @@ match SC.lin.method:
             ML_err_rng = Qstep/pow(2, 12) # (try to emulate 18-bit measurements (add 12 bit))
             
         # 10-bit DAC
-        elif QConfig in [qs.w_10bit_ARTI, qs.w_10bit_ZTC_ARTI]:
+        elif QConfig in [qs.w_10bit_2ch_SPICE, qs.w_10bit_ARTI, qs.w_10bit_ZTC_ARTI]:
             ML_err_rng = Qstep/pow(2, 8) # (try to emulate 18-bit measurements (add 8 bit))
 
         # 16-bit DAC
@@ -334,7 +331,7 @@ match SC.lin.method:
         C = nsdcal(X, Dq, YQns, MLns, Qstep, Vmin, Nb, QMODEL)  ##### output codes
 
         # Zero input to sec. channel for sims with two channels (only need one channel)
-        if QConfig == qs.w_6bit_2ch_SPICE or QConfig == qs.w_16bit_2ch_SPICE or QConfig == qs.w_10bit_2ch_SPICE:
+        if QConfig in [qs.w_6bit_2ch_SPICE, qs.w_16bit_2ch_SPICE, qs.w_10bit_2ch_SPICE]:
             C = np.stack((C[0, :], np.zeros(C.shape[1])))
         
     case lm.SHPD:  # stochastic high-pass noise dither
@@ -362,7 +359,16 @@ match SC.lin.method:
                     Fc_hf = 250e3
                 elif Fs == 32735232:
                     Xscale = 50
-                    Fc_hf = 1500e3
+                    Fc_hf = 250e3
+                else:
+                    sys.exit('SHPD: Missing config.')
+            case qs.w_10bit_2ch_SPICE:
+                if Fs == 1022976:
+                    Xscale = 70
+                    Fc_hf = 250e3
+                elif Fs == 32735232:
+                    Xscale = 50
+                    Fc_hf = 250e3
                 else:
                     sys.exit('SHPD: Missing config.')
             case  qs.w_6bit_ARTI:
@@ -591,7 +597,7 @@ match SC.lin.method:
                 Dfreq = 300e3
             elif Fs == 32735232:
                 Xscale = 74
-                Dfreq = 1.0e6
+                Dfreq = 900e3
             else:
                 sys.exit('PHFD: Missing config.')
         elif QConfig == qs.w_16bit_2ch_SPICE:
@@ -602,11 +608,11 @@ match SC.lin.method:
             #Dfreq = 5.0e6 # Fs262Mhz - 16 bit 2 Ch
         elif QConfig == qs.w_10bit_2ch_SPICE:
             if Fs == 1022976:
-                Xscale = 82
-                Dfreq = 200e3
+                Xscale = 80
+                Dfreq = 300e3
             elif Fs == 32735232:
-                Xscale = 74
-                Dfreq = 1.0e6
+                Xscale = 50
+                Dfreq = 900e3
             else:
                 sys.exit('PHFD: Missing config.')
         else:
@@ -619,7 +625,7 @@ match SC.lin.method:
         Dadf = dither_generation.adf.uniform  # amplitude distr. funct. (ADF)
         # Generate periodic dither
         Dmaxamp = Rng/2  # maximum dither amplitude (volt)
-        dp = Dmaxamp*dither_generation.gen_periodic(t, Dfreq, Dadf)
+        dp = 0.975*Dmaxamp*dither_generation.gen_periodic(t, Dfreq, Dadf)
         
         # Opposite polarity for HF dither for pri. and sec. channel
         if Nch == 2:
@@ -653,7 +659,7 @@ match SC.lin.method:
         elif QConfig == qs.w_6bit_ARTI: HEADROOM = 0*15  # 6 bit DAC
         elif QConfig == qs.w_6bit_ZTC_ARTI: HEADROOM = 15  # 6 bit DAC
         elif QConfig == qs.w_16bit_ARTI: HEADROOM = 1  # 16 bit DAC
-        elif QConfig == qs.w_6bit_2ch_SPICE: HEADROOM = 5  # 6 bit DAC
+        elif QConfig == qs.w_6bit_2ch_SPICE: HEADROOM = 0  # 6 bit DAC
         elif QConfig == qs.w_16bit_2ch_SPICE: HEADROOM = 10  # 16 bit DAC
         elif QConfig == qs.w_10bit_2ch_SPICE: HEADROOM = 5  # 10 bit DAC
         elif QConfig == qs.w_10bit_ARTI: HEADROOM = 0* 10  # 10 bit DAC
