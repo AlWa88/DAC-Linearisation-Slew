@@ -45,15 +45,20 @@ codes_dirs = os.listdir(method_d)
 if not codes_dirs:  # list empty?
     raise SystemExit('No codes found.')
 
+""" if len(codes_dirs) > 1:
+    for d_index, codes_d in enumerate(codes_dirs):
+        # read pickled (marshalled) state/config object
+        with open(os.path.join(method_d, codes_d, 'sim_config.pickle'), 'rb') as fin:
+            SC = pickle.load(fin)
+
+        run_info = [['Method', 'Model', 'Fs', 'Fc', 'Fx', ],
+                    [str(SC.lin), str(SC.dac), f'{Float(SC.fs):.0h}', f'{Float(SC.fc):.0h}', f'{Float(SC.ref_freq):.1h}']]
+        print(tabulate(run_info))
+
+        input('Enter 'Y' to pick this run.')
+else: """
+
 codes_d = codes_dirs[0]  # pick run
-
-# read pickled (marshalled) state/config object
-with open(os.path.join(method_d, codes_d, 'sim_config.pickle'), 'rb') as fin:
-    SC = pickle.load(fin)
-
-run_info = [['Method', 'Model', 'Fs', 'Fc', 'Fx', ],
-            [str(SC.lin), str(SC.dac), f'{Float(SC.fs):.0h}', f'{Float(SC.fc):.0h}', f'{Float(SC.ref_freq):.1h}']]
-print(tabulate(run_info))
 
 hash_stamp = codes_d
 spice_case_d = os.path.join('spice_sim', 'cases', str(SC.lin).replace(' ', '_'), hash_stamp)
