@@ -57,7 +57,7 @@ from run_static_model_and_post_processing import run_static_model_and_post_proce
 
 METHOD_CHOICE = 6
 DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
-match 2:
+match 4:
     case 1:
         FS_CHOICE = 4
         DAC_CIRCUIT = 7  # 6 bit spice
@@ -368,7 +368,7 @@ match SC.lin.method:
                     Fc_hf = 250e3
                 elif Fs == 32735232:
                     Xscale = 50
-                    Fc_hf = 1500e3
+                    Fc_hf = 250e3
                 else:
                     sys.exit('SHPD: Missing config.')
             case  qs.w_6bit_ARTI:
@@ -611,8 +611,8 @@ match SC.lin.method:
                 Xscale = 80
                 Dfreq = 300e3
             elif Fs == 32735232:
-                Xscale = 74
-                Dfreq = 1.0e6
+                Xscale = 50
+                Dfreq = 900e3
             else:
                 sys.exit('PHFD: Missing config.')
         else:
