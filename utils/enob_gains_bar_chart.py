@@ -12,16 +12,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 import os
 
-# %% DAC  and sampling frequency
-DAC_6bit_SKY_Fs_102MHz = 1
-DAC_6bit_SKY_Fs_327MHz = 2
-DAC_10bit_SKY_Fs_102MHz = 3
-DAC_10bit_SKY_Fs_327MHz = 4
-DAC_6bit_PRO_Fs_209MHz = 5
-DAC_10bit_PRO_Fs_209MHz = 6
-
 # %%
-match 6:
+match 4:
     case 1: # 6 bit SkyWater at 1.02 MHz 
         tech = 'SkyWater'
         node = 'SKY130'
@@ -145,12 +137,12 @@ match 6:
         static_mhoq = 18.39
 
         # Spice simulation results
-        spice_baseline = 6.093
-        spice_physcal = 6.164
-        spice_nsdcal = 8.343
-        spice_phfd = 6.783
-        spice_shpd= 3.522
-        spice_dem = 4.874
+        spice_baseline = 7.66
+        spice_physcal = 13.67
+        spice_nsdcal = 17.64
+        spice_phfd = 12.47
+        spice_shpd = 8.55
+        spice_dem = 7.26
         spice_mhoq = 17.12
         # Calculate gains
         static_gains = np.array([static_physcal, static_nsdcal, static_phfd, static_shpd, static_dem, static_mhoq]) - static_baseline
