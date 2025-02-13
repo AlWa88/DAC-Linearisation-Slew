@@ -1,315 +1,178 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Run DAC simulations using various linearisation methods
+"""
+MPC-Based Optimal Control for DAC Linearization 
+
+The goal is to improve the linearity of a Digital-to-Analog Converter (DAC) by formulating an optimal control 
+problem that accounts for system constraints and non-idealities (INL). This problem is cast as a Mixed-Integer 
+Programming (MIP) problem and solved using the Gurobi solver.
 
 @author: Bikash Adhikari
 @date: 22.02.2024
 @license: BSD 3-Clause
 """
 
-import numpy as np
-from scipy import linalg , signal
+# Import necessary libraries
+import numpy as np  # Used for numerical computations
+from scipy import linalg, signal  # SciPy modules for linear algebra and signal processing
 import sys
-import random
-import gurobipy as gp
-from gurobipy import GRB
-import tqdm
+import random  # Standard Python module for random number generation
+import gurobipy as gp  # Import Gurobi for solving the optimization problem
+from gurobipy import GRB  # Import Gurobi constants
+import tqdm  # For displaying a progress bar
 
 
 class MPC:
-    def __init__(self, Nb, Qstep, QMODEL,  A, B, C, D):
+    """
+    Model Predictive Control (MPC) class to optimize DAC linearization.
+    """
+
+    def __init__(self, Nb, Qstep, QMODEL, A, B, C, D):
         """
         Constructor for the Model Predictive Controller.
-        :param Nb: Number of bits 
-        :param Qstep: Quantizer step size / Least significant bit (LSB) 
-        :param N_PRED: Prediction horizon | int 
-        :param Xcs: Reference/Test signal 
-        :param QL: Quantization levels 
-        :param A, B, C, D: Matrices; state space representation of the reconstruction filter
+
+        :param Nb: Number of bits in DAC
+        :param Qstep: Quantizer step size (Least Significant Bit, LSB)
+        :param QMODEL: Quantization model type (Ideal vs Measured)
+        :param A, B, C, D: State-space matrices defining the reconstruction filter
         """
         self.Nb = Nb
-        self.Qstep = abs(Qstep)
-        self.QMODEL = QMODEL
-        self.A = A
-        self.B = B
-        self.C = C
-        self.D = D
+        self.Qstep = abs(Qstep)  # Ensure step size is positive
+        self.QMODEL = QMODEL  # Model selection flag (Ideal vs Measured)
+        self.A = A  # State-space matrix A
+        self.B = B  # State-space matrix B
+        self.C = C  # State-space matrix C
+        self.D = D  # State-space matrix D
     
         
     def state_prediction(self, st, con):
         """
-        Predict the state for the given initial condition and control
+        Predicts the next state of the system given the current state and control input.
+        The state evolution follows the equation:
+        x[k+1] = A * x[k] + B * u[k]
+
+        :param st: Current state vector
+        :param con: Control input at the current step
+        :return: Predicted state for the next step
         """
-        x_iplus1 = self.A @ st + self.B * con
+        x_iplus1 = self.A @ st + self.B * con  # Compute next state
         return x_iplus1
 
     
-    def q_scaling(self, X):
-        Xs = X.squeeze()/self.Qstep  + 2**(self.Nb-1)
+    def q_scaling(self, X): 
+        """
+        Scales the input signal and quantization levels to a normalized range.
+        Scaling improves numerical precision in optimization by avoiding issues with large/small values.
+
+        :param X: Input signal or quantization levels
+        :return: Scaled signal
+        """
+        Xs = X.squeeze() / self.Qstep + 2**(self.Nb - 1)  # Normalize signal
         return Xs
 
     
-    # def get_codes(self, Xcs, N_PRED, YQns, MLns)
-    def get_codes(self, N_PRED, Xcs, YQns, MLns ):
+    def get_codes(self, N_PRED, Xcs, YQns, MLns):
+        """
+        Computes the optimal DAC codes using Model Predictive Control (MPC).
+        The optimization ensures that the DAC output follows the desired signal as closely as possible.
 
-        # Scale the input to the quantizer levels to run it as an MILP
-        #Xs = Xcs.squeeze()
-        #X = Xs/self.Qstep + 2**(self.Nb-1)
+        :param N_PRED: Prediction horizon (number of future steps considered in MPC)
+        :param Xcs: Reference input signal to be quantized
+        :param YQns: Ideal quantization levels
+        :param MLns: Measured quantization levels
+        :return: Optimal DAC code sequence
+        """
 
-        X = self.q_scaling(Xcs)
-        
-        #  Scale levels  
-        if False:
-            match self.QMODEL:
-                case 1:
-                    QLS = (YQns /self.Qstep ) + 2**(self.Nb-1) - 1/2
-                    QLS = QLS.squeeze()
-                case 2:
-                    QLS = (MLns /self.Qstep ) + 2**(self.Nb-1) -1/2
-                    QLS = QLS.squeeze()
+        # Scale the reference signal for the quantizer
+        X = self.q_scaling(Xcs)  # Normalize the input signal
 
-        if False:
-            INL = (YQns - MLns)/self.Qstep
+        # Choose quantization levels based on the selected model (Ideal vs Measured)
+        match self.QMODEL:
+            case 1:
+                QLS = self.q_scaling(YQns.reshape(1, -1)).squeeze()  # Ideal quantization levels
+            case 2:
+                QLS = self.q_scaling(MLns.reshape(1, -1)).squeeze()  # Measured quantization levels
 
-            match self.QMODEL:
-                case 1:
-                    QLS = (YQns/self.Qstep) + 2**(self.Nb-1) -1/2
-                    QLS = QLS.squeeze()
-                case 2:
-                    QLS = (YQns/self.Qstep) + 2**(self.Nb-1) -1/2
-                    QLS = QLS + INL
-                    QLS = QLS.squeeze()
-        
-        if True:
-            match self.QMODEL:
-                case 1:
-                    QLS = self.q_scaling(YQns.reshape(1,-1)).squeeze()
-                case 2:
-                    QLS = self.q_scaling(MLns.reshape(1,-1)).squeeze()
-
-        # Storage container for code
+        # Storage container for DAC codes
         C = []
 
-        # Loop length
-        len_MPC = X.size - N_PRED
+        # Define loop length for MPC optimization
+        len_MPC = X.size - N_PRED  # Number of iterations to perform
 
-        # State dimension
-        x_dim =  int(self.A.shape[0]) 
+        # Determine the dimension of the state vector
+        x_dim = int(self.A.shape[0])  # The number of state variables
 
-        # Initial state
-        init_state = np.zeros(x_dim).reshape(-1,1)
-        
-        # MPC loop
-        for j in tqdm.tqdm(range(len_MPC)):
+        # Initialize state to zero (assumes no prior knowledge of initial conditions)
+        init_state = np.zeros(x_dim).reshape(-1, 1)
+
+        # Start MPC loop to optimize DAC codes
+        for j in tqdm.tqdm(range(len_MPC)):  # Iterate over all input samples
             
-            m = gp.Model("MPC- INL")
-            m.setParam("OutputFlag", 0)
+            # Initialize the Gurobi optimization environment
+            env = gp.Env(empty=True)
+            env.setParam("OutputFlag", 0)  # Disable solver logs
+            env.start()
+            m = gp.Model("MPC- INL", env=env)  # Create a Gurobi model instance
 
-            u = m.addMVar(N_PRED, vtype=GRB.INTEGER, name= "u", lb = 0, ub =  2**self.Nb-1) # control variable
-            x = m.addMVar((x_dim*(N_PRED+1),1), vtype= GRB.CONTINUOUS, lb = -GRB.INFINITY, ub = GRB.INFINITY, name = "x")  # State variable 
+            # Define decision variables for optimization
+            u = m.addMVar(N_PRED, vtype=GRB.INTEGER, name="u", lb=0, ub=2**self.Nb - 1)  # Discrete control input
+            x = m.addMVar((x_dim * (N_PRED + 1), 1), vtype=GRB.CONTINUOUS, 
+                          lb=-GRB.INFINITY, ub=GRB.INFINITY, name="x")  # State trajectory
 
-            # Add objective function
+            # Initialize the objective function (error minimization)
             Obj = 0
 
-            # Set initial constraint
-            m.addConstr(x[0:x_dim,:] == init_state)
+            # Apply initial condition constraint
+            m.addConstr(x[0:x_dim, :] == init_state)  # Set the initial state
+            
+            # Loop through the prediction horizon to set up constraints and objective function
             for i in range(N_PRED):
-                k = x_dim * i
-                st = x[k:k+x_dim]
-                con = u[i] - X[j+i]
+                k = x_dim * i  # Compute index for state vector
+                st = x[k:k + x_dim]  # Extract current state
+                con = u[i] - X[j + i]  # Compute control deviation from reference signal
 
-                # Objective update
-                e_t = self.C @ x[k:k+x_dim] + self.D * con
-                Obj = Obj + e_t * e_t
+                # Compute the error between desired and actual output
+                e_t = self.C @ x[k:k + x_dim] + self.D * con
+                Obj += e_t * e_t  # Accumulate squared error in the objective function
 
-                # Constraints update
-                f_value = self.A @ st + self.B * con
-                st_next = x[k+x_dim:k+2*x_dim]
-                m.addConstr(st_next == f_value)
+                # Update system dynamics constraints
+                f_value = self.A @ st + self.B * con  # Compute next state
+                st_next = x[k + x_dim:k + 2 * x_dim]  # Extract next state variable
+                m.addConstr(st_next == f_value)  # Enforce state transition constraint
 
-            # Gurobi model update
-            m.update
+            # Update the Gurobi model
+            m.update()
 
-            # Set Gurobi objective
+            # Set the optimization objective (minimize tracking error)
             m.setObjective(Obj, GRB.MINIMIZE)
 
-            # 0 - Supress log output, 1- Print log outputs
-            # m.Params.LogToConsole = 0
+            # Configure solver parameters for high precision
+            m.Params.IntFeasTol = 1e-9  # Set integer feasibility tolerance
+            m.Params.IntegralityFocus = 1  # Prioritize finding integer solutions
 
-            # Gurobi setting for precision  
-            # m.Params.IntFeasTol = 1e-9
-            # m.Params.IntegralityFocus = 1
-
-            # Optimization 
+            # Solve the optimization problem
             m.optimize()
 
-            # Extract variable values 
+            # Extract optimal solution from solver
             allvars = m.getVars()
-            values = m.getAttr("X",allvars)
+            values = m.getAttr("X", allvars)
             values = np.array(values)
 
-            # Extract only the value of the variable "u", value of the variable "x" are not needed
-            C_MPC = values[0:N_PRED]
+            # Extract the optimal DAC code sequence (first N_PRED elements of "u")
+            C_MPC = values[:N_PRED].astype(int)  # Convert to integer
 
-            # Ideally they should be integral, but gurobi generally return them in floating point values according to the precision tolorence set: m.Params.IntFeasTol
-            # Round off to nearest integers
-            C_MPC = C_MPC.astype(int)
-
-            # Store only the first value /code
+            # Store only the first code from the prediction sequence
             C.append(C_MPC[0])
 
-            # Get DAC level according to the coe
-            U_opt = QLS[C_MPC[0]] 
+            # Get the DAC level based on the selected model (ideal or measured)
+            U_opt = QLS[C_MPC[0]]
 
-            # State prediction 
+            # Predict next state based on optimal control input
             con = U_opt - X[j]
             x0_new = self.state_prediction(init_state, con)
 
-            # State update for subsequent prediction horizon 
+            # Update initial state for the next iteration
             init_state = x0_new
 
-        return np.array(C).reshape(1,-1)
-
-
-# class MPC_BIN:
-#     def __init__(self, Nb, Qstep, QMODEL,  A, B, C, D):
-#         """
-#         Constructor for the Model Predictive Controller.
-#         :param Nb: Number of bits 
-#         :param Qstep: Quantizer step size / Least significant bit (LSB) 
-#         :param N_PRED: Prediction horizon | int 
-#         :param Xcs: Reference/Test signal 
-#         :param QL: Quantization levels 
-#         :param A, B, C, D: Matrices; state space representation of the reconstruction filter
-#         """
-#         self.Nb = Nb
-#         self.Qstep = abs(Qstep)
-#         # self.N_PRED = N_PRED
-#         # self.Xcs = Xcs
-#         # self.QL = QL.reshape(1,-1)
-#         self.QMODEL = QMODEL
-#         self.A = A
-#         self.B = B
-#         self.C = C
-#         self.D = D
-#         # self.x0 = x0
-    
-        
-#     def state_prediction(self, st, con):
-#         """
-#         Predict the state for the given initial condition and control
-#         """
-#         x_iplus1 = self.A @ st + self.B * con
-#         return x_iplus1
-    
-#     # def get_codes(self, Xcs, N_PRED, YQns, MLns)
-#     def get_codes(self, N_PRED, Xcs, YQns, MLns ):
-
-
-#         match self.QMODEL:
-#             case 1:
-#                 QL = YQns
-#             case 2:
-#                 QL = MLns
-#         # Storage container for code
-#         C = []
-
-#         # Loop length
-#         len_MPC = Xcs.size - N_PRED
-
-#         # State dimension
-#         x_dim =  int(self.A.shape[0]) 
-
-#         # Initial state
-#         init_state = np.zeros(x_dim).reshape(-1,1)
-
-#         # MPC loop
-#         for j in tqdm.tqdm(range(len_MPC)):
-
-#             m = gp.Model("MPC- INL")
-#             u = m.addMVar((2**self.Nb, N_PRED), vtype=GRB.BINARY, name= "u") # control variable
-#             x = m.addMVar((x_dim*(N_PRED+1),1), vtype= GRB.CONTINUOUS, lb = -GRB.INFINITY, ub = GRB.INFINITY, name = "x")  # State varible 
-
-
-#             # Add objective function
-#             Obj = 0
-
-#             # Set initial constraint
-#             m.addConstr(x[0:x_dim,:] == init_state)
-#             for i in range(N_PRED):
-#                 k = x_dim * i
-#                 st = x[k:k+x_dim]
-#                 bin_con =  QL.reshape(1,-1) @ u[:,i].reshape(-1,1) 
-#                 con = bin_con - Xcs[j+i]
-
-#                 # Objective update
-#                 e_t = self.C @ x[k:k+x_dim] + self.D * con
-#                 Obj = Obj + e_t * e_t
-
-#                 # Constraints update
-#                 f_value = self.A @ st + self.B * con
-#                 st_next = x[k+x_dim:k+2*x_dim]
-#                 m.addConstr(st_next == f_value)
-
-#                 # Binary varialble constraint
-#                 consi = gp.quicksum(u[:,i]) 
-#                 m.addConstr(consi == 1)
-#         # m.addConstr(consi >= 0.98)
-#         # m.addConstr(consi <= 1.02
-#             # Gurobi model update
-#             m.update
-
-#             # Set Gurobi objective
-#             m.setObjective(Obj, GRB.MINIMIZE)
-
-#             # 0 - Supress log output, 1- Print log outputs
-#             m.Params.LogToConsole = 0
-
-#             # Gurobi setting for precision  
-#             m.Params.IntFeasTol = 1e-9
-#             m.Params.IntegralityFocus = 1
-
-#             # Optimization 
-#             m.optimize()
-
-#             # Extract variable values 
-#             allvars = m.getVars()
-#             values = m.getAttr("X",allvars)
-#             values = np.array(values)
-
-#             # Variable dimension
-#             nr, nc = u.shape
-#             u_val = values[0:nr*nc]
-#             u_val = np.reshape(u_val, (2**self.Nb, N_PRED))
-
-#             # Extract Code
-#             C_MPC = []
-#             for i in range(N_PRED):
-#                 c1 = np.nonzero(u_val[:,i])[0][0]
-#                 c1 = int(c1)
-#                 C_MPC.append(c1)
-#             C_MPC = np.array(C_MPC)
-#             C.append(C_MPC[0])
-
-#             U_opt = QL[C_MPC[0]] 
-#             # # Extract only the value of the variable "u", value of the variable "x" are not needed
-#             # C_MPC = values[0:N_PRED]
-
-#             # # Ideally they should be integral, but gurobi generally return them in floating point values according to the precision tolorence set: m.Params.IntFeasTol
-#             # # Round off to nearest integers
-#             # C_MPC = C_MPC.astype(int)
-
-#             # # Store only the first value /code
-#             # C.append(C_MPC[0])
-
-#             # # Get DAC level according to the coe
-#             # U_opt = QLS[C_MPC[0]] 
-
-#             # State prediction 
-#             con = U_opt - Xcs[j]
-#             x0_new = self.state_prediction(init_state, con)
-
-#             # State update for subsequent prediction horizon 
-#             init_state = x0_new
-
-#         return np.array(C).reshape(1,-1)
+        # Return the final computed DAC code sequence as a 2D array
+        return np.array(C).reshape(1, -1)

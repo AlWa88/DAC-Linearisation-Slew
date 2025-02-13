@@ -8,8 +8,8 @@
 """
 
 # %%
-%reload_ext autoreload
-%autoreload 2
+# %reload_ext autoreload
+# %autoreload 2
 
 # Imports
 import sys
@@ -57,7 +57,7 @@ from run_static_model_and_post_processing import run_static_model_and_post_proce
 
 METHOD_CHOICE = 7
 DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
-match 2:
+match 1:
     case 1:
         FS_CHOICE = 4
         DAC_CIRCUIT = 7  # 6 bit spice
@@ -163,7 +163,7 @@ match 2:
             Np = 200  # no. of periods for carrier
         else:
             Np = 5  # no. of periods for carrier (IEEE recommended for curve-fit is 5)
-            Np = 3
+            # Np = 3
 
 Npt = 1  # no. of test signal periods to use to account for transients
 Ncyc = Np + 2*Npt
@@ -708,7 +708,7 @@ match SC.lin.method:
         QMODEL = 2 #: 1 - no calibration, 2 - Calibration
 
         # Run MPC Binary variables
-        #MPC_OBJ = MPC_BIN(Nb, Qstep, QMODEL, A1, B1, C1, D1)
+        # MPC_OBJ = MPC_BIN(Nb, Qstep, QMODEL, A1, B1, C1, D1)
         MPC_OBJ = MPC(Nb, Qstep, QMODEL, A1, B1, C1, D1)
         C = MPC_OBJ.get_codes(N_PRED, X, YQns, MLns_E)  ##### output codes
 
