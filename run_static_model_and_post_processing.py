@@ -18,7 +18,7 @@ from prefixed import Float
 from tabulate import tabulate
 
 from utils.results import handle_results
-from utils.static_dac_model import generate_dac_output, quantise_signal, generate_codes, quantiser_type
+from utils.static_dac_model import generate_dac_output, quantise_signal, generate_codes, quantiser_type, slew_model
 from utils.quantiser_configurations import quantiser_configurations, get_measured_levels, qs
 from utils.spice_utils import run_spice_sim, run_spice_sim_parallel, gen_spice_sim_file, read_spice_bin_file, process_sim_output
 from LM.lin_method_util import lm, dm
@@ -68,15 +68,19 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
     t = SC.t
 
     # use static non-linear quantiser model to simulate DAC
-
     ML = get_measured_levels(QConfig, SC.lin.method)
     YM = generate_dac_output(C.astype(int), ML)  # using measured or randomised levels
     tm = t[0:YM.size]
 
+    # use slew model
+    YMs = slew_model(YM, Ts, 0.1)
+
     # Summation stage
+    # TODO: Generalize the gain K. Current solution is creates errors depending on number of channel (typical Nch=1)
     if SC.lin.method == lm.BASELINE:
         K = np.ones((Nch,1))
-        K[1] = 0.0  # null one channel (want single channel resp.)
+        K = 1
+        # K[1] = 0.0  # null one channel (want single channel resp.)
     elif SC.lin.method == lm.DEM:
         K = 1/Nch
     elif SC.lin.method == lm.PHYSCAL:
@@ -95,10 +99,10 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
     else:
         K = 1/Nch
         
-    print('Summing gain:')
-    print(K)
+    print(f'Summing gain: {K}')
 
     ym = np.sum(K*YM, 0)
+    yms = np.sum(K*YMs, 0)
     t = t[0:len(ym)]
 
     TRANSOFF = np.floor(1*Fs/Fx).astype(int)  # remove transient effects from output
@@ -108,12 +112,20 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
 
     ym_avg, ENOB_M = process_sim_output(t, ym, Fc, Fs, Nf, TRANSOFF, sinad_comp.CFIT, MAKE_PLOT, 'SPICE')
 
-    if (MAKE_PLOT):
-        plt.plot(t[TRANSOFF:-TRANSOFF],ym[TRANSOFF:-TRANSOFF])
-        plt.plot(t[TRANSOFF:-TRANSOFF],ym_avg[TRANSOFF:-TRANSOFF])
-
     # results_tab = [['DAC config', 'Method', 'Model', 'Fs', 'Fc', 'X scale', 'Fx', 'ENOB'],
     # [str(SC.qconfig), str(SC.lin), str(SC.dac), f'{Float(SC.fs):.2h}', f'{Float(SC.fc):.1h}', f'{Float(SC.ref_scale):.1h}%', f'{Float(SC.ref_freq):.1h}', f'{Float(ENOB_M):.3h}']]
     # print(tabulate(results_tab))
 
     handle_results(SC, ENOB_M)
+
+    if (MAKE_PLOT):
+        plt.figure()
+        plt.plot(t[TRANSOFF:-TRANSOFF],ym[TRANSOFF:-TRANSOFF], label='ym')
+        plt.plot(t[TRANSOFF:-TRANSOFF],yms[TRANSOFF:-TRANSOFF], label='ym_slew')
+        plt.plot(t[TRANSOFF:-TRANSOFF],ym_avg[TRANSOFF:-TRANSOFF], label='ym_avg')
+        # plt.plot(t,ym, label='ym')
+        # plt.plot(t,yms, label='ym_slew')
+        # plt.plot(t,ym_avg, label='ym_avg')
+        plt.title(f'Method: {str(SC.lin.method)}')
+        plt.legend(loc='upper right')
+        plt.show()
