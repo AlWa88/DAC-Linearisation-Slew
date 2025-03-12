@@ -7,3 +7,8 @@ __pycache__/
 /spice_output*
 /*.m
 /local
+
+# Exclude results from repo
+generated_codes/
+results/
+
