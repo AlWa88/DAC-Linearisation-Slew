@@ -28,6 +28,10 @@ import pickle
 #from prefixed import Float
 #from tabulate import tabulate
 
+LATEX_PLOT = 0
+if LATEX_PLOT:
+    plt.rcParams['text.usetex'] = True
+
 import utils.dither_generation as dither_generation
 from utils.dual_dither import dual_dither, hist_and_psd
 from utils.quantiser_configurations import quantiser_configurations, get_measured_levels, qs
@@ -55,9 +59,11 @@ from run_static_model_and_post_processing import run_static_model_and_post_proce
 
 #%% Configure DAC and test conditions
 
-METHOD_CHOICE = 7
+METHOD_CHOICE = 1
 DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
-match 1:
+DITHER_BASELINE = 0 # 0=off, 1=dither on for BASELINE
+SETUP = 7
+match SETUP:
     case 1:
         FS_CHOICE = 4
         DAC_CIRCUIT = 7  # 6 bit spice
@@ -76,20 +82,24 @@ match 1:
     case 6:
         FS_CHOICE = 10
         DAC_CIRCUIT = 11  # 10 bit spectre
+    case 7: # ni dac slew
+        FS_CHOICE = 1
+        DAC_CIRCUIT = 12
 
 SINAD_COMP = 1
-
 PLOTS = 1
 
 # Test/reference signal spec. (to be recovered on the output)
 Xref_SCALE = 100  # %
-Xref_FREQ = 1000  # Hz
+Xref_FREQ = 9  # Hz
 
 # Output low-pass filter configuration
 Fc_lp = 100e3  # cut-off frequency in hertz
 N_lp = 3  # filter order
 
 N_PRED = 1 # prediction horizon (MPC)
+
+
 
 ##### METHOD CHOICE - Choose which linearisation method you want to test
 match METHOD_CHOICE:
@@ -130,6 +140,7 @@ match FS_CHOICE:
     case 10: Fs = 209715200                 # Coherent sampling at 5 cycles, 1048576 points, and f0 = 1 kHz 
     case 11: Fs = 261881856
     case 12: Fs = 226719135.13513514400
+    case 13: Fs = 2e6
 
 Ts = 1/Fs  # sampling time
 
@@ -146,10 +157,11 @@ match DAC_CIRCUIT:
     case 9: QConfig = qs.w_10bit_2ch_SPICE
     case 10: QConfig = qs.w_6bit_ZTC_ARTI
     case 11: QConfig = qs.w_10bit_ZTC_ARTI
+    case 12: QConfig = qs.w_16bit_NI_card
 
 Nb, Mq, Vmin, Vmax, Rng, Qstep, YQ, Qtype = quantiser_configurations(QConfig)
 
-print(QConfig)
+print(f'QConfig: {str(QConfig)}')
 
     
 # %%
@@ -195,7 +207,7 @@ match SC.lin.method:
             Nch = 1
         
         # Quantisation dither (eliminate harm. distortion from quantisation)
-        Q_DITHER_ON = 1
+        Q_DITHER_ON = DITHER_BASELINE
         Dq = dither_generation.gen_stochastic(t.size, Nch, Qstep, dither_generation.pdf.triangular_hp)
         Dq = Q_DITHER_ON*Dq
 
@@ -867,4 +879,5 @@ np.save(codes_f, C)
 if (DAC_MODEL_CHOICE == 1):
     run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=PLOTS)
 
+pass
 # %%

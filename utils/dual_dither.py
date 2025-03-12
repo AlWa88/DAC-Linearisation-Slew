@@ -13,8 +13,6 @@ from scipy import signal
 from scipy import special
 import matplotlib.pyplot as plt
 
-plt.rcParams['text.usetex'] = True
-
 from utils.fir_filter_ls import fir_filter_ls
 
 

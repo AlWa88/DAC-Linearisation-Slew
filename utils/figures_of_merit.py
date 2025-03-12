@@ -37,13 +37,14 @@ def TS_SINAD(x, t, make_plot=False, plot_label=''):
     x_fit = sin_p(t, *p_opt)
 
     if make_plot:
+        plt.figure()
         plt.plot(t, x, 'r--', label=plot_label)
         plt.plot(t, x_fit, 'g--', label='fit: A=%5.3f, f=%5.3f, phi=%5.3f, C=%5.3f' % tuple(p_opt))
 
         plt.xlabel('t')
         plt.ylabel('out')
         plt.legend()
-        plt.show()
+        # plt.show()
 
     error = x - x_fit
 
