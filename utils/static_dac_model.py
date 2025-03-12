@@ -43,6 +43,31 @@ def generate_codes(q, Nb, Qtype):
 
     return c.astype(int)
 
+def slew_model(y, ts, R):
+    """
+    Add slewing affect to a given DAC output signal.
+    
+    Parameters
+    ----------
+    y
+        dac output signal
+    ts
+        time step (delta t)
+    R
+        rising rate, in V/us, typically given by datasheet
+    """
+    YS = np.copy(y)
+    R = R*1e6 # v/us to v/s
+    F = -R # falling rate
+    for i in range(1,YS.shape[1]):
+        rate = (YS[0,i]-YS[0,i-1])/ts
+        if (rate > R):
+            YS[0,i] = R * ts + YS[0,i-1]
+        elif (rate < F):
+            YS[0,i] = F * ts + YS[0,i-1]
+        else:
+            pass # y=u, vector is already copied above
+    return YS
 
 def generate_dac_output(C, ML):
     """
@@ -78,5 +103,4 @@ def generate_dac_output(C, ML):
         case 2: # use numpy indexing
             for k in range(0,C.shape[0]):
                 Y[k,:] = ML[k,C[k,:]]
-        
     return Y
