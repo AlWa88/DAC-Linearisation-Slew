@@ -34,7 +34,6 @@ class qs:  # quantiser specification (given DAC implementation)
     w_6bit_ZTC_ARTI = 14
     w_10bit_ZTC_ARTI = 15
 
-
 def quantiser_configurations(QConfig):
     """
     Return specified quantiser model configuration, given QConfig selector.
@@ -200,6 +199,7 @@ def get_measured_levels(QConfig, lmethod=lm.BASELINE):
             # load measured levels given linearisation method (measured for a given physical set-up)
             match lmethod:
                 case lm.BASELINE | lm.DEM | lm.NSDCAL | lm.SHPD | lm.PHFD | lm.ILC | lm.MPC:
+                    Nb, Mq, Vmin, Vmax, Rng, Qstep, YQ, Qtype = quantiser_configurations(QConfig)
                     infile = 'level_measurements.mat'
                     if os.path.exists(os.path.join(inpath, infile)):
                         mat_file = scipy.io.loadmat(os.path.join(inpath, infile))
@@ -209,6 +209,11 @@ def get_measured_levels(QConfig, lmethod=lm.BASELINE):
                     
                     # static DAC model output levels, one channel per row
                     ML = mat_file['ML']  # measured levels
+                    
+                    # adjust nbit size in case the model is altered within the QConfig
+                    # the measurements file is the 16 bit full range
+                    # example: 16bit [0,1,2,...,65533,65534,65535] becomes 4 bit [0,,,...,,,65535] 
+                    ML = ML[:,np.linspace(0, (2**16)-1, 2**Nb, dtype=np.int32)]
 
                 case lm.PHYSCAL:
                     infile = 'PHYSCAL_level_measurements_set_2.mat'
