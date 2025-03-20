@@ -29,7 +29,7 @@ def test_signal(SCALE, MAXAMP, FREQ, OFFSET, t):
 
 
 class sim_config:
-    def __init__(self, qconfig, lin, dac, fs, t, fc, nf, ref_scale, ref_freq, ncyc, nch=1):
+    def __init__(self, qconfig, lin, dac, fs, t, fc, nf, ref_scale, ref_freq, ncyc, sr, nch=1):
         self.qconfig = qconfig
         self.lin = lin
         self.dac = dac
@@ -40,6 +40,7 @@ class sim_config:
         self.ref_scale = ref_scale
         self.ref_freq = ref_freq
         self.ncyc = ncyc # number of periods/cycles of the fundamental/carrier
+        self.sr = sr # slew rate
         self.nch = nch # number of channels
 
     def __str__(self):
@@ -53,6 +54,7 @@ class sim_config:
         s = s + 'Fx=' + f'{Float(self.ref_freq):.0h}' + '\n'
         s = s + 'Ncyc=' + f'{Float(self.ncyc):.0h}' + '\n'
         s = s + 'Nch=' + f'{Float(self.nch):.0h}' + '\n'
+        s = s + 'SR=' + f'{Float(self.sr):.0h}' + '\n'
         
         return s
 

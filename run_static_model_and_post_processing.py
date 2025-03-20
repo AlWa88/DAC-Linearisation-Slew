@@ -14,6 +14,7 @@ import os
 import pickle
 import numpy as np
 from matplotlib import pyplot as plt
+import pyperclip
 from prefixed import Float
 from tabulate import tabulate
 
@@ -40,7 +41,7 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
 
     # read pickled (marshalled) state/config object
     with open(os.path.join(method_d, codes_d, 'sim_config.pickle'), 'rb') as fin:
-        SC = pickle.load(fin)
+        SC:sim_config = pickle.load(fin)
 
     hash_stamp = codes_d
     static_case_d = os.path.join('static_sim', 'cases', str(SC.lin).replace(' ', '_'), hash_stamp)
@@ -56,6 +57,7 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
     Fs = SC.fs
     Ts = 1/Fs  # sampling time
     Fx = SC.ref_freq
+    Sr = SC.sr # slew rate
 
     codes_fn = 'codes.npy'  # TODO: magic constant, name of codes file
 
@@ -73,7 +75,7 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
     tm = t[0:YM.size]
 
     # use slew model
-    YMs = slew_model(YM, Ts, 0.1)
+    YMs = slew_model(YM, Ts, Sr)
 
     # Summation stage
     # TODO: Generalize the gain K. Current solution is creates errors depending on number of channel (typical Nch=1)
@@ -110,7 +112,10 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
     Fc = SC.fc
     Nf = SC.nf
 
-    ym_avg, ENOB_M = process_sim_output(t, ym, Fc, Fs, Nf, TRANSOFF, sinad_comp.CFIT, MAKE_PLOT, 'SPICE')
+    print('RESULTS WITHOUT SLEW')
+    ym_avg, ENOB_M = process_sim_output(t, ym, Fc, Fs, Nf, TRANSOFF, sinad_comp.CFIT)
+    print('RESULTS WITH SLEW')
+    yms_avg, ENOB_M = process_sim_output(t, yms, Fc, Fs, Nf, TRANSOFF, sinad_comp.CFIT)
 
     # results_tab = [['DAC config', 'Method', 'Model', 'Fs', 'Fc', 'X scale', 'Fx', 'ENOB'],
     # [str(SC.qconfig), str(SC.lin), str(SC.dac), f'{Float(SC.fs):.2h}', f'{Float(SC.fc):.1h}', f'{Float(SC.ref_scale):.1h}%', f'{Float(SC.ref_freq):.1h}', f'{Float(ENOB_M):.3h}']]
@@ -119,13 +124,33 @@ def run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=False):
     handle_results(SC, ENOB_M)
 
     if (MAKE_PLOT):
+        # Function to handle click events
+        def onclick(event):
+            if event.button == 3:  # Right-click
+                ix, iy = event.xdata, event.ydata
+                print(f'x = {ix}, y = {iy}')
+                pyperclip.copy(f'{ix},{iy}')
+
         plt.figure()
         plt.plot(t[TRANSOFF:-TRANSOFF],ym[TRANSOFF:-TRANSOFF], label='ym')
-        plt.plot(t[TRANSOFF:-TRANSOFF],yms[TRANSOFF:-TRANSOFF], label='ym_slew')
+        plt.plot(t[TRANSOFF:-TRANSOFF],yms[TRANSOFF:-TRANSOFF], '--', label='yms')
         plt.plot(t[TRANSOFF:-TRANSOFF],ym_avg[TRANSOFF:-TRANSOFF], label='ym_avg')
-        # plt.plot(t,ym, label='ym')
-        # plt.plot(t,yms, label='ym_slew')
-        # plt.plot(t,ym_avg, label='ym_avg')
-        plt.title(f'Method: {str(SC.lin.method)}')
+        plt.plot(t[TRANSOFF:-TRANSOFF],yms_avg[TRANSOFF:-TRANSOFF], '--', label='yms_avg')
+        plt.title(f'Method: {str(lm(SC.lin.method))}')
+        plt.xlabel('Time [s]')
+        plt.ylabel('Output [V]')
         plt.legend(loc='upper right')
+
+        # Connecting the click event to the handler function for the first figure
+        cid1 = plt.gcf().canvas.mpl_connect('button_press_event', onclick)
+
+        
+        plt.figure()
+        plt.plot(t[TRANSOFF:-TRANSOFF],ym[TRANSOFF:-TRANSOFF]-yms[TRANSOFF:-TRANSOFF], label='ym-yms')
+        plt.plot(t[TRANSOFF:-TRANSOFF],ym_avg[TRANSOFF:-TRANSOFF]-yms_avg[TRANSOFF:-TRANSOFF], label='ym_avg-yms_avg')
+        plt.title(f'Method: {str(lm(SC.lin.method))} Slew Error')
+        plt.xlabel('Time [s]')
+        plt.ylabel('Output [V]')
+        plt.legend(loc='upper right')
+        
         plt.show()

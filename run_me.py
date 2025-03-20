@@ -59,7 +59,7 @@ from run_static_model_and_post_processing import run_static_model_and_post_proce
 
 #%% Configure DAC and test conditions
 
-METHOD_CHOICE = 1
+METHOD_CHOICE = 3
 DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
 DITHER_BASELINE = 0 # 0=off, 1=dither on for BASELINE
 SETUP = 7
@@ -83,7 +83,7 @@ match SETUP:
         FS_CHOICE = 10
         DAC_CIRCUIT = 11  # 10 bit spectre
     case 7: # ni dac slew
-        FS_CHOICE = 1
+        FS_CHOICE = 13
         DAC_CIRCUIT = 12
 
 SINAD_COMP = 1
@@ -91,7 +91,8 @@ PLOTS = 1
 
 # Test/reference signal spec. (to be recovered on the output)
 Xref_SCALE = 100  # %
-Xref_FREQ = 9  # Hz
+Xref_FREQ = 99  # Hz
+Slew_rate = .1 # V/us
 
 # Output low-pass filter configuration
 Fc_lp = 100e3  # cut-off frequency in hertz
@@ -140,9 +141,12 @@ match FS_CHOICE:
     case 10: Fs = 209715200                 # Coherent sampling at 5 cycles, 1048576 points, and f0 = 1 kHz 
     case 11: Fs = 261881856
     case 12: Fs = 226719135.13513514400
-    case 13: Fs = 2e6
+    case 13: Fs = 52e6
 
 Ts = 1/Fs  # sampling time
+
+if Fs < 2* Xref_FREQ:
+    print('2*Fs Nyquist teorem exceeded')
 
 ##### Set DAC circuit model
 match DAC_CIRCUIT:
@@ -185,7 +189,7 @@ t = np.arange(0, t_end, Ts)  # time vector
 
 # TODO: ref_scale is misleading; should be % of baseline full range possible for a method
 # setting ref_scale=0, to be updated per method
-SC = sim_config(QConfig, lin, dac, Fs, t, Fc_lp, N_lp, 0, Xref_FREQ, Ncyc)
+SC = sim_config(QConfig, lin, dac, Fs, t, Fc_lp, N_lp, 0, Xref_FREQ, Ncyc, Slew_rate)
 
 # Generate test/reference signal
 SIGNAL_MAXAMP = Rng/2 - Qstep  # make headroom for noise dither (see below)
@@ -308,6 +312,7 @@ match SC.lin.method:
         elif QConfig == qs.w_16bit_2ch_SPICE:   HEADROOM = 1    # 16 bit DAC
         elif QConfig == qs.w_10bit_2ch_SPICE:   HEADROOM = 5    # 10 bit DAC
         elif QConfig == qs.w_16bit_6t_ARTI:     HEADROOM = 1    # 16 bit DAC
+        elif QConfig == qs.w_16bit_NI_card:     HEADROOM = 10
         else: sys.exit('NSDCAL: Missing config.')
 
         Xscale = 100 - HEADROOM
@@ -328,7 +333,7 @@ match SC.lin.method:
         elif QConfig in [qs.w_10bit_2ch_SPICE, qs.w_10bit_ARTI, qs.w_10bit_ZTC_ARTI]:
             ML_err_rng = Qstep/pow(2, 8) # (try to emulate 18-bit measurements (add 8 bit))
         # 16-bit DAC
-        elif QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_16bit_6t_ARTI]:
+        elif QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_16bit_6t_ARTI, qs.w_16bit_NI_card]:
             ML_err_rng = Qstep/pow(2, 2) # (try to emulate 18-bit measurements (add 2 bit))
         else:
             sys.exit('NSDCAL: Unknown QConfig for ML error')
@@ -342,6 +347,13 @@ match SC.lin.method:
         # Zero input to sec. channel for sims with two channels (only need one channel)
         if QConfig in [qs.w_6bit_2ch_SPICE, qs.w_16bit_2ch_SPICE, qs.w_10bit_2ch_SPICE]:
             C = np.stack((C[0, :], np.zeros(C.shape[1])))
+        
+        # Print noise shaping amplitudes and occurency count (frequency of each value)
+        diff = np.abs(np.diff(C))
+        elements, counts = np.unique(diff, return_counts=True)
+        plt.stem(elements, counts)
+        plt.xlabel('Value')
+        plt.ylabel('Frequency')
         
     case lm.SHPD:  # stochastic high-pass noise dither
         # Adds a large(ish) high-pass filtered normally distributed noise dither.
