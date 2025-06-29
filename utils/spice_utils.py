@@ -13,7 +13,6 @@ from matplotlib import pyplot as plt
 import fileinput
 import subprocess
 #import datetime
-from scipy import signal
 from scipy import interpolate
 import pickle
 from prefixed import Float
@@ -22,9 +21,9 @@ from tabulate import tabulate
 import sys
 sys.path.append('../')
 
-from utils.test_util import sinad_comp
 from LM.lin_method_util import lm, dm
-from utils.figures_of_merit import FFT_SINAD, TS_SINAD
+from utils.figures_of_merit import eval_enob_sinad, SINAD_COMP
+from utils.static_dac_model import reconstruction_filter
 from utils.quantiser_configurations import qs
 
 
@@ -433,47 +432,6 @@ def read_spice_bin_file_with_most_recent_timestamp(fdir):
 
     return t_spice, y_spice
 
-
-def process_sim_output(ty, y, Fc, Fs, Nf, TRANSOFF, SINAD_COMP_SEL, plot=False, descr=''):
-    # Filter the output using a reconstruction (output) filter
-    #print(ty.shape)
-    #print(y.shape)
-    
-    match 1:
-        case 1:
-            Wc = 2*np.pi*Fc
-            b, a = signal.butter(Nf, Wc, 'lowpass', analog=True)  # filter coefficients
-            Wlp = signal.lti(b, a)  # filter LTI system instance
-
-            y = y.reshape(-1, 1)  # ensure the vector is a column vector
-            y_avg_out = signal.lsim(Wlp, y, ty, X0=None, interp=False)  # filter the output
-            y_avg = y_avg_out[1]  # extract the filtered data; lsim returns (T, y, x) tuple, want output y
-        case 2:
-            bd, ad = signal.butter(Nf, Fc, fs=Fs)
-            y = y.reshape(-1, 1).squeeze()  # ensure the vector is a column vector
-            y_avg = signal.lfilter(bd, ad, y)
-        case 3:
-            y = y.reshape(-1, 1)  # ensure the vector is a column vector
-            y_avg = y.squeeze()
-    
-    print(y_avg.shape)
-
-    match SINAD_COMP_SEL:
-        case sinad_comp.FFT:  # use FFT based method to detemine SINAD
-            R = FFT_SINAD(y_avg[TRANSOFF:-TRANSOFF], Fs, plot, descr)
-        case sinad_comp.CFIT:  # use time-series sine fitting based method to detemine SINAD
-            y_avg = y_avg.reshape(1, -1).squeeze()
-            R = TS_SINAD(y_avg[TRANSOFF:-TRANSOFF], ty[TRANSOFF:-TRANSOFF], plot, descr)
-
-    ENOB = (R - 1.76)/6.02
-
-    # Print FOM
-    print(descr + ' SINAD: {}'.format(R))
-    print(descr + ' ENOB: {}'.format(ENOB))
-
-    return y_avg, ENOB
-
-
 def main():
     """
     Read results from a given SPICE simulation and process the data.
@@ -594,7 +552,8 @@ def main():
         Fc = SC.fc
         Nf = SC.nf
 
-        ym_avg, ENOB_M = process_sim_output(t, ym, Fc, Fs_, Nf, TRANSOFF, sinad_comp.CFIT, False, 'SPICE')
+        ym_avg = reconstruction_filter(t, ym, Fc, Fs_, Nf, False)
+        ENOB_M, = eval_enob_sinad(t, ym_avg, Fs_, TRANSOFF, SINAD_COMP.CFIT, False, False, 'SPICE')
 
         plt.plot(t,ym)
         plt.plot(t,ym_avg)

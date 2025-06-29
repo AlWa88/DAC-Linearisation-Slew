@@ -27,8 +27,10 @@ from tabulate import tabulate
 from utils.test_util import sim_config
 from utils.quantiser_configurations import quantiser_configurations, qs
 from LM.lin_method_util import lm, dm
-from utils.spice_utils import run_spice_sim, run_spice_sim_parallel, gen_spice_sim_file, read_spice_bin_file, process_sim_output
+from utils.spice_utils import run_spice_sim, run_spice_sim_parallel, gen_spice_sim_file, read_spice_bin_file
 from utils.inl_processing import get_physcal_gain
+from utils.figures_of_merit import eval_enob_sinad, SINAD_COMP
+from utils.static_dac_model import reconstruction_filter
 
 # choose method
 METHOD_CHOICE = 7
@@ -179,7 +181,7 @@ if False:
 
 
 
-    from utils.spice_utils import run_spice_sim, run_spice_sim_parallel, gen_spice_sim_file, read_spice_bin_file, sim_config, process_sim_output, sinad_comp
+    from utils.spice_utils import run_spice_sim, run_spice_sim_parallel, gen_spice_sim_file, read_spice_bin_file, sim_config, sinad_comp
 
     #spice_path = '/home/eielsen/ngspice_files/bin/ngspice'  # newest ver., fastest (local)
     spice_path = 'ngspice'  # 
@@ -232,7 +234,7 @@ if False:
 
         # Remove transients and process the output
         TRANSOFF = np.floor(Npt*Fs/Xcs_FREQ).astype(int)  # remove transient effects from output
-        # yu_avg, ENOB_U = process_sim_output(tu, yu, Fc_lp, Fs, N_lp, TRANSOFF, SINAD_COMP_SEL, False, 'uniform')
-        ym_avg, ENOB_M = process_sim_output(tm, ym, Fc_lp, Fs, N_lp, TRANSOFF, SINAD_COMP_SEL, PLOT_CURVE_FIT, 'non-linear')
+        ym_avg = reconstruction_filter(tm, ym, Fc_lp, Fs, N_lp, False)
+        ENOB_M, = eval_enob_sinad(tm, ym, Fs, TRANSOFF, SINAD_COMP.CFIT, False, PLOT_CURVE_FIT, 'non-linear')
 
         handle_results(SC, ENOB_M)
