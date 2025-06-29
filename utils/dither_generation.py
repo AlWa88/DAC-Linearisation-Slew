@@ -48,24 +48,25 @@ def gen_stochastic(Nsamp, Nch, W, pdf_type):
         Nch - number of channels (independent dithers)
         W - dither amplitude
         pdf_type - chose the dither pdf (probability distribution function)
-
     Returns
         dn - the dither signal
     """
 
     Na = -W/2
     Nb = W/2
-
-    match pdf_type:
-        case pdf.uniform: # Rectangular PDF
-            dn = np.random.uniform(low=Na, high=Nb, size=[Nch,Nsamp])
-        case pdf.triangular_white: # Triangular PDF (TPDF) (white)
-            d1 = np.random.uniform(low=Na, high=Nb, size=[Nch,Nsamp])
-            d2 = np.random.uniform(low=Na, high=Nb, size=[Nch,Nsamp])
-            dn = d1 + d2
-        case pdf.triangular_hp: # Triangular PDF (TPDF) (high-pass)
-            dd = np.random.uniform(low=Na, high=Nb, size=[Nch,Nsamp+1])
-            dn = dd[:,0:-1] - dd[:,1:]
+    dn = np.zeros((Nch, Nsamp))
+    for ch in range(Nch):
+        np.random.seed(ch)
+        match pdf_type:
+            case pdf.uniform: # Rectangular PDF
+                dn[ch] = np.random.uniform(low=Na, high=Nb, size=Nsamp)
+            case pdf.triangular_white: # Triangular PDF (TPDF) (white)
+                d1 = np.random.uniform(low=Na, high=Nb, size=Nsamp)
+                d2 = np.random.uniform(low=Na, high=Nb, size=Nsamp)
+                dn[ch] = d1 + d2
+            case pdf.triangular_hp: # Triangular PDF (TPDF) (high-pass)
+                dd = np.random.uniform(low=Na, high=Nb, size=(Nch,Nsamp+1))
+                dn[ch] = dd[:,0:-1] - dd[:,1:]
 
     return dn
 
