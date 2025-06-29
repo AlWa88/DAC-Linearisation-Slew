@@ -15,24 +15,30 @@ from LM.lin_method_util import lm, dm
 import scipy
 
 from utils.static_dac_model import quantiser_type
+from enum import Enum, auto
 
-
-class qs:  # quantiser specification (given DAC implementation)
-    w_4bit = 1
-    w_6bit = 2
-    w_12bit = 3
-    w_16bit = 4
-    w_16bit_NI_card = 5
-    w_16bit_SPICE = 6
-    w_6bit_ARTI = 7
-    w_16bit_ARTI = 8
-    w_6bit_2ch_SPICE = 9
-    w_16bit_2ch_SPICE = 10
-    w_16bit_6t_ARTI = 11
-    w_10bit_ARTI = 12
-    w_10bit_2ch_SPICE = 13
-    w_6bit_ZTC_ARTI = 14
-    w_10bit_ZTC_ARTI = 15
+class qs(Enum):  # quantiser specification (given DAC implementation)
+    w_4bit = auto()
+    w_6bit = auto()
+    w_12bit = auto()
+    w_16bit = auto()
+    w_16bit_NI_card = auto()
+    w_16bit_SPICE = auto()
+    w_6bit_ARTI = auto()
+    w_16bit_ARTI = auto()
+    w_6bit_2ch_SPICE = auto()
+    w_16bit_2ch_SPICE = auto()
+    w_16bit_6t_ARTI = auto()
+    w_10bit_ARTI = auto()
+    w_10bit_2ch_SPICE = auto()
+    w_6bit_ZTC_ARTI = auto()
+    w_10bit_ZTC_ARTI = auto()
+    w_8bit_NI_card = auto()
+    w_6bit_NI_card = auto()
+    w_4bit_NI_card = auto()
+    w_10bit_NI_card = auto()
+    w_12bit_NI_card = auto()
+    w_14bit_NI_card = auto()
 
 def quantiser_configurations(QConfig):
     """
@@ -64,6 +70,42 @@ def quantiser_configurations(QConfig):
             Vmin = -1 # volt
             Vmax = 1 # volt
             Qtype = quantiser_type.midtread
+        case qs.w_4bit_NI_card:
+            Nb = 4 # word-size
+            Mq = 2**Nb - 1 # max. code
+            Vmin = -10 # volt
+            Vmax = 10 # volt
+            Qtype = quantiser_type.midtread
+        case qs.w_6bit_NI_card:
+            Nb = 6 # word-size
+            Mq = 2**Nb - 1 # max. code
+            Vmin = -10 # volt
+            Vmax = 10 # volt
+            Qtype = quantiser_type.midtread
+        case qs.w_8bit_NI_card:
+            Nb = 8 # word-size
+            Mq = 2**Nb - 1 # max. code
+            Vmin = -10 # volt
+            Vmax = 10 # volt
+            Qtype = quantiser_type.midtread
+        case qs.w_10bit_NI_card:
+            Nb = 10 # word-size
+            Mq = 2**Nb - 1 # max. code
+            Vmin = -10 # volt
+            Vmax = 10 # volt
+            Qtype = quantiser_type.midtread
+        case qs.w_12bit_NI_card:
+            Nb = 12 # word-size
+            Mq = 2**Nb - 1 # max. code
+            Vmin = -10 # volt
+            Vmax = 10 # volt
+            Qtype = quantiser_type.midtread
+        case qs.w_14bit_NI_card:
+            Nb = 14 # word-size
+            Mq = 2**Nb - 1 # max. code
+            Vmin = -10 # volt
+            Vmax = 10 # volt
+            Qtype = quantiser_type.midtread
         case qs.w_16bit_NI_card:
             Nb = 16 # word-size
             Mq = 2**Nb - 1 # max. code
@@ -86,7 +128,7 @@ def quantiser_configurations(QConfig):
         case qs.w_6bit_ZTC_ARTI: # ZTC - Zero temperature coefficient
             # 6-bit DAC. All bits are binary-weighted
             Nb = 6 # word-size
-            Mq = 2**Nb - 1; # max. code
+            Mq = 2**Nb - 1 # max. code
             Vmin = -0.01990203 # Ampere
             Vmax = 0.019906069024198073 # Ampere
             #Vmin = -0.020022468 # ch1
@@ -95,57 +137,56 @@ def quantiser_configurations(QConfig):
         case qs.w_10bit_ARTI:
             # 6-bit DAC. All bits are binary-weighted
             Nb = 10 # word-size
-            Mq = 2**Nb - 1; # max. code
+            Mq = 2**Nb - 1 # max. code
             Vmin = -0.018117286 # Ampere
             Vmax = 0.018076990 # Ampere
             Qtype = quantiser_type.midtread
         case qs.w_10bit_ZTC_ARTI: # ZTC - Zero temperature coefficient
             # 6-bit DAC. All bits are binary-weighted
             Nb = 10 # word-size
-            Mq = 2**Nb - 1; # max. code
+            Mq = 2**Nb - 1 # max. code
             Vmin = -0.019769005 # Ampere
             Vmax = 0.019769606441919794 # Ampere
             Qtype = quantiser_type.midtread
         case qs.w_16bit_ARTI:
             # 16-bit DAC. All bits are binary-weighted
             Nb = 16 # word-size
-            Mq = 2**Nb - 1; # max. code
+            Mq = 2**Nb - 1 # max. code
             Vmin =  -0.022337035 # Ampere
             Vmax = 0.022341269 # Ampere
             Qtype = quantiser_type.midtread
         case qs.w_16bit_6t_ARTI:
             # 16-bit DAC. The 10 first bits are binary-weighted, and the upper 6 bits are thermometer-weighted.
             Nb = 16 # word-size
-            Mq = 2**Nb - 1; # max. code
+            Mq = 2**Nb - 1 # max. code
             Vmin = -0.02060208 # Ampere
             Vmax = 0.020602487 # Ampere
             Qtype = quantiser_type.midtread
         case qs.w_6bit_2ch_SPICE:
             Nb = 6 # word-size
-            Mq = 2**Nb - 1; # max. code
+            Mq = 2**Nb - 1 # max. code
             Vmin = -8.00371104e-05 # volt
             Vmax = 7.99005702e-05 # volt
             Qtype = quantiser_type.midtread
         case qs.w_16bit_2ch_SPICE:
             Nb = 16 # word-size
-            Mq = 2**Nb - 1; # max. code
+            Mq = 2**Nb - 1 # max. code
             Vmin =  -0.08022664 # volt
             Vmax = 0.08024051 # volt
             Qtype = quantiser_type.midtread
         case qs.w_10bit_2ch_SPICE:
             Nb = 10 # word-size
-            Mq = 2**Nb - 1; # max. code
+            Mq = 2**Nb - 1 # max. code
             Vmin = -0.00528967841 # volt
             Vmax = 0.00528972540 # volt
             Qtype = quantiser_type.midtread
         case _:
             sys.exit("Invalid quantiser configuration selected.")
 
-    Rng = Vmax - Vmin  # voltage range
-    
+    Rng = Vmax - Vmin  # voltage range   
     Qstep = Rng/Mq  # step-size (LSB)
     
-    # YQ = np.arange(Vmin, Vmax+Qstep, Qstep)  # ideal output levels (mid-tread quantiser)
+    # YQ1 = np.arange(Vmin, Vmax+Qstep, Qstep)  # ideal output levels (mid-tread quantiser)
     YQ = np.linspace(Vmin, Vmax, Mq+1)
     YQ = np.reshape(YQ, (-1, YQ.shape[0]))  # generate 2d array with 1 row
     
@@ -167,7 +208,7 @@ def get_ML(inpath, infile, CSV_filename):
         raise SystemExit('No level measurements file found.')
 
 
-def get_measured_levels(QConfig, lmethod=lm.BASELINE):
+def get_measured_levels(QConfig:qs, lmethod=lm.BASELINE) -> np.ndarray:
     """
     Load measured or generated output levels for a given quanstiser model.
 
@@ -195,10 +236,10 @@ def get_measured_levels(QConfig, lmethod=lm.BASELINE):
             Nch = 2
             ML = matlib.repmat(YQ, Nch, 1)
 
-        case qs.w_16bit_NI_card:  # load measured levels for given qconfig
+        case qs.w_16bit_NI_card | qs.w_14bit_NI_card | qs.w_12bit_NI_card | qs.w_10bit_NI_card | qs.w_8bit_NI_card | qs.w_6bit_NI_card | qs.w_4bit_NI_card:  # load measured levels for given qconfig
             # load measured levels given linearisation method (measured for a given physical set-up)
             match lmethod:
-                case lm.BASELINE | lm.DEM | lm.NSDCAL | lm.SHPD | lm.PHFD | lm.ILC | lm.MPC:
+                case lm.BASELINE | lm.DEM | lm.NSDCAL | lm.SHPD | lm.PHFD | lm.ILC | lm.MPC | lm.STEP | lm.MPC_RL_RM | lm.MPC_SL | lm.MPC_RL:
                     Nb, Mq, Vmin, Vmax, Rng, Qstep, YQ, Qtype = quantiser_configurations(QConfig)
                     infile = 'level_measurements.mat'
                     if os.path.exists(os.path.join(inpath, infile)):
@@ -209,7 +250,7 @@ def get_measured_levels(QConfig, lmethod=lm.BASELINE):
                     
                     # static DAC model output levels, one channel per row
                     ML = mat_file['ML']  # measured levels
-                    
+
                     # adjust nbit size in case the model is altered within the QConfig
                     # the measurements file is the 16 bit full range
                     # example: 16bit [0,1,2,...,65533,65534,65535] becomes 4 bit [0,,,...,,,65535] 
@@ -277,7 +318,7 @@ def get_measured_levels(QConfig, lmethod=lm.BASELINE):
         ML = np.load(os.path.join(inpath, infile))
     else:  # can't recover from this
         raise SystemExit('No level measurements file found.')
-    
+
     return ML
 
 
