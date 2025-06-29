@@ -26,17 +26,22 @@ A summary of the latest results can be found in this repository at [results/resu
 
 ## Dependencies
 The code in this repository is dependent on the libraries listed below:
-```
+``` External
 numpy
 scipy
-matplotlib
-statistics
+matplotlib - pip install matplotlib
+statistics - pip install statistics
+control - pip install control
+tabulate - pip install tabulate
+prefixed - pip install prefixed
+tqdm - pip install tqdm
+pyperclip - pip install pyperclip
+gurobi - pip install gurobipy
+
+
+''' Defaults (included )
 itertools
 math    
-```
-Optimization solver
-```  
-gurobi
 ```
 
 ## Simulation
