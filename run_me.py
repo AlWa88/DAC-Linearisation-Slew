@@ -27,6 +27,7 @@ import datetime
 import pickle
 #from prefixed import Float
 #from tabulate import tabulate
+import argparse
 
 LATEX_PLOT = 0
 if LATEX_PLOT:
@@ -36,7 +37,7 @@ import utils.dither_generation as dither_generation
 from utils.dual_dither import dual_dither, hist_and_psd
 from utils.quantiser_configurations import quantiser_configurations, get_measured_levels, qs
 from utils.results import handle_results
-from utils.static_dac_model import generate_dac_output, quantise_signal, generate_codes, quantiser_type
+from utils.static_dac_model import generate_dac_output, quantise_signal, generate_codes, quantiser_type, measurement_noise_range
 from utils.figures_of_merit import FFT_SINAD, TS_SINAD
 from utils.balreal import balreal_ct, balreal
 from utils.mpc_filter_parameters import mpc_filter_parameters
@@ -50,71 +51,172 @@ from LM.lin_method_mpc_bin import MPC_BIN
 # from lin_method_ILC_DSM import learningMatrices, get_ILC_control
 from LM.lin_method_dsm_ilc import DSM_ILC
 from LM.lin_method_util import lm, dm
-
-from utils.test_util import sim_config, sinad_comp, test_signal
-
-from utils.spice_utils import run_spice_sim, run_spice_sim_parallel, gen_spice_sim_file, read_spice_bin_file, process_sim_output
-
+from LM.lin_method_mpc_rl_rm import MHOQ_RLIM_RM
+from LM.lin_method_mpc_rl import MHOQ_RLIM
+from utils.figures_of_merit import SINAD_COMP
+from utils.test_util import sim_config, test_signal_sine, test_signal_square
 from run_static_model_and_post_processing import run_static_model_and_post_processing
 
 #%% Configure DAC and test conditions
 
-METHOD_CHOICE = 3
-DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
-DITHER_BASELINE = 0 # 0=off, 1=dither on for BASELINE
-SETUP = 7
-match SETUP:
-    case 1:
-        FS_CHOICE = 4
-        DAC_CIRCUIT = 7  # 6 bit spice
-    case 2:
-        FS_CHOICE = 7
-        DAC_CIRCUIT = 7  # 6 bit spice
-    case 3:
-        FS_CHOICE = 4
-        DAC_CIRCUIT = 9  # 10 bit spice
-    case 4:
-        FS_CHOICE = 7
-        DAC_CIRCUIT = 9  # 10 bit spice
-    case 5:
-        FS_CHOICE = 10
-        DAC_CIRCUIT = 10  # 6 bit spectre
-    case 6:
-        FS_CHOICE = 10
-        DAC_CIRCUIT = 11  # 10 bit spectre
-    case 7: # ni dac slew
-        FS_CHOICE = 13
-        DAC_CIRCUIT = 12
-
-SINAD_COMP = 1
-PLOTS = 1
-
 # Test/reference signal spec. (to be recovered on the output)
-Xref_SCALE = 100  # %
-Xref_FREQ = 99  # Hz
-Slew_rate = .1 # V/us
+Xref_SCALE = (65535/65535)*100 # %
+Xref_FREQ = 10000 #166999 # 14915.49431 # 301592.5178 # 90796 # 79760  # 181592.5178 Hz
+Slew_rate = 10 # 11.4097944 # V/us
+MPC_step_limit = 2
 
 # Output low-pass filter configuration
-Fc_lp = 100e3  # cut-off frequency in hertz
+Fc_lp = 100e3 # cut-off frequency in hertz
 N_lp = 3  # filter order
 
+METHOD_CHOICE = 1
+DAC_MODEL_CHOICE = 1  # 1 - static, 2 - spice
+DITHER_BASELINE = 0 # 0=off, 1=dither on for BASELINE
+# SETUP = 7
+TEST_CASE = 6
+M_NOISE = 1 # 0=off
+SINAD_COMP_SEL = SINAD_COMP.CFIT
+PLOTS = False
+SAVE_ENOB = True
 N_PRED = 1 # prediction horizon (MPC)
+NCH = 1
 
+#%% Parse arguments if used
+# This section is used when run_me.py is called from command line.
+# run_me_wrapper.py does this for repeated simulations with for different xrefs and methods
+parser = argparse.ArgumentParser()
+parser.add_argument('--TEST_CASE', type=int)
+parser.add_argument('--Xref_FREQ', type=int)
+parser.add_argument('--MPC_step_limit', type=int)
+parser.add_argument('--METHOD_CHOICE', type=int)
+parser.add_argument('--QConfig', type=int)
+args = parser.parse_args()
 
+if args.TEST_CASE == 0:
+    TEST_CASE = args.TEST_CASE
+    Xref_FREQ = args.Xref_FREQ
+    MPC_step_limit = args.MPC_step_limit
+    Slew_rate = 7
+    Fc_lp = 100e3
+    Fs_Scope = 1e7
+    RUN_LM = lm(args.METHOD_CHOICE)
+    # SETUP = 0
+    FS_CHOICE = 1
+    QConfig = qs(args.QConfig)
+    PLOTS = False
+    SAVE_ENOB = True
+    print(f'Running with CLI arguments: {args}')
+
+#%% Run case
+match TEST_CASE:
+    case 0:
+        pass
+#     case 1:
+#         # BASELINE fail
+#         Xref_FREQ = 166999
+#         Slew_rate = 10
+#         Fc_lp = 100e6
+#         RUN_LM = lm.BASELINE
+#         # SETUP = 0
+#         FS_CHOICE = 3
+#         QConfig = qs.w_16bit_NI_card 
+#     case 2:
+#         # NSDCAL fail
+#         Xref_FREQ = 7500
+#         Slew_rate = 1
+#         Fc_lp = 100e3
+#         RUN_LM = lm.NSDCAL
+#         # SETUP = 0
+#         FS_CHOICE = 1
+#         QConfig = qs.w_16bit_NI_card 
+
+#     case 3:
+#         # NSDCAL 
+#         Xref_FREQ = 100000
+#         Slew_rate = 10
+#         Fc_lp = 100e12
+#         RUN_LM = lm.NSDCAL
+#         # SETUP = 0
+#         FS_CHOICE = 1
+#         QConfig = qs.w_16bit_NI_card 
+
+#     case 4:
+#         # BASE
+#         Xref_FREQ = 50000
+#         Slew_rate = 7
+#         Fc_lp = 350e3
+#         Fs_Scope = 1e9
+#         RUN_LM = lm.BASELINE
+#         # SETUP = 0
+#         FS_CHOICE = 1
+#         QConfig = qs.w_16bit_NI_card    
+
+#     case 5:
+#         # NSDCAL - ENOB=18.17 
+#         Xref_FREQ = 5000
+#         Slew_rate = 7
+#         Fc_lp = 50e3
+#         Fs_Scope = 1e7
+#         RUN_LM = lm.NSDCAL
+#         # SETUP = 0
+#         FS_CHOICE = 1
+#         QConfig = qs.w_16bit_NI_card
+
+    case 6:
+        # MPC_RL 
+        Xref_FREQ = 5000
+        Slew_rate = 7
+        Fc_lp = 100e3
+        Fs_Scope = 1e7
+        RUN_LM = lm.NSDCAL
+        # SETUP = 0
+        FS_CHOICE = 1
+        QConfig = qs.w_16bit_NI_card
+        M_NOISE = 1
+        PLOTS = True
+
+# match SETUP:
+#     case 0:
+#         pass
+#     case 1:
+#         FS_CHOICE = 3
+#         DAC_CIRCUIT = 7  # 6 bit spice
+#     case 2:
+#         FS_CHOICE = 7
+#         DAC_CIRCUIT = 7  # 6 bit spice
+#     case 3:
+#         FS_CHOICE = 4
+#         DAC_CIRCUIT = 9  # 10 bit spice
+#     case 4:
+#         FS_CHOICE = 7
+#         DAC_CIRCUIT = 9  # 10 bit spice
+#     case 5:
+#         FS_CHOICE = 10
+#         DAC_CIRCUIT = 10  # 6 bit spectre
+#     case 6:
+#         FS_CHOICE = 10
+#         DAC_CIRCUIT = 11  # 10 bit spectre
+#     case 7: # ni dac slew
+#         FS_CHOICE = 2
+#         DAC_CIRCUIT = 12
 
 ##### METHOD CHOICE - Choose which linearisation method you want to test
-match METHOD_CHOICE:
-    case 1: RUN_LM = lm.BASELINE
-    case 2: RUN_LM = lm.PHYSCAL
-    case 3: RUN_LM = lm.NSDCAL
-    case 4: RUN_LM = lm.PHFD
-    case 5: RUN_LM = lm.SHPD
-    case 6: RUN_LM = lm.DEM
-    case 7: RUN_LM = lm.MPC # lm.MPC or lm.MHOQ
-    case 8: RUN_LM = lm.ILC
-    case 9: RUN_LM = lm.ILC_SIMP
+# match METHOD_CHOICE:
+    # case 1: RUN_LM = lm.BASELINE
+    # case 2: RUN_LM = lm.PHYSCAL
+    # case 3: RUN_LM = lm.NSDCAL
+    # case 4: RUN_LM = lm.PHFD
+    # case 5: RUN_LM = lm.SHPD
+    # case 6: RUN_LM = lm.DEM
+    # case 7: RUN_LM = lm.MPC # lm.MPC or lm.MHOQ
+    # case 8: RUN_LM = lm.ILC
+    # case 9: RUN_LM = lm.ILC_SIMP
+    # case 10: RUN_LM = lm.STEP
+    # case 11: RUN_LM = lm.MPC_RL_RM
+    # case 12: RUN_LM = lm.MPC_RL
+    # case 13: RUN_LM = lm.MPC_SL
 
-lin = lm(RUN_LM)
+lin = RUN_LM
 
 ##### DAC MODEL CHOICE (TODO: consider deprecating)
 
@@ -122,10 +224,10 @@ match DAC_MODEL_CHOICE:
     case 1: dac = dm(dm.STATIC)  # use static non-linear quantiser model to simulate DAC
     case 2: dac = dm(dm.SPICE)  # use SPICE to simulate DAC output
 
-##### Chose how to compute SINAD
-match SINAD_COMP:
-    case 1: SINAD_COMP_SEL = sinad_comp.CFIT  # use curve-fit (best for short time-series)
-    case 2: SINAD_COMP_SEL = sinad_comp.FFT  # use frequency response (better for long time-series)
+# ##### Chose how to compute SINAD
+# match SINAD_COMP_CHOICE:
+#     case 1: SINAD_COMP_SEL = SINAD_COMP.CFIT  # use curve-fit (best for short time-series)
+#     case 2: SINAD_COMP_SEL = SINAD_COMP.FFT  # use frequency response (better for long time-series)
 
 ##### Sampling rate (over-sampling) in hertz
 match FS_CHOICE:
@@ -141,33 +243,35 @@ match FS_CHOICE:
     case 10: Fs = 209715200                 # Coherent sampling at 5 cycles, 1048576 points, and f0 = 1 kHz 
     case 11: Fs = 261881856
     case 12: Fs = 226719135.13513514400
-    case 13: Fs = 52e6
+    case 13: Fs = 2e6
 
 Ts = 1/Fs  # sampling time
 
 if Fs < 2* Xref_FREQ:
     print('2*Fs Nyquist teorem exceeded')
+    exit(1)
 
 ##### Set DAC circuit model
-match DAC_CIRCUIT:
-    case 1: QConfig = qs.w_6bit  # "ideal" model (no circuit sim.)
-    case 2: QConfig = qs.w_16bit_SPICE
-    case 3: QConfig = qs.w_16bit_ARTI
-    case 4: QConfig = qs.w_16bit_6t_ARTI
-    case 5: QConfig = qs.w_6bit_ARTI
-    case 6: QConfig = qs.w_10bit_ARTI
-    case 7: QConfig = qs.w_6bit_2ch_SPICE
-    case 8: QConfig = qs.w_16bit_2ch_SPICE
-    case 9: QConfig = qs.w_10bit_2ch_SPICE
-    case 10: QConfig = qs.w_6bit_ZTC_ARTI
-    case 11: QConfig = qs.w_10bit_ZTC_ARTI
-    case 12: QConfig = qs.w_16bit_NI_card
+# match DAC_CIRCUIT:
+#     case 1: QConfig = qs.w_6bit  # "ideal" model (no circuit sim.)
+#     case 2: QConfig = qs.w_16bit_SPICE
+#     case 3: QConfig = qs.w_16bit_ARTI
+#     case 4: QConfig = qs.w_16bit_6t_ARTI
+#     case 5: QConfig = qs.w_6bit_ARTI
+#     case 6: QConfig = qs.w_10bit_ARTI
+#     case 7: QConfig = qs.w_6bit_2ch_SPICE
+#     case 8: QConfig = qs.w_16bit_2ch_SPICE
+#     case 9: QConfig = qs.w_10bit_2ch_SPICE
+#     case 10: QConfig = qs.w_6bit_ZTC_ARTI
+#     case 11: QConfig = qs.w_10bit_ZTC_ARTI
+#     case 12: QConfig = qs.w_16bit_NI_card
+#     case 13: QConfig = qs.w_8bit_NI_card
+#     case 14: QConfig = qs.w_6bit_NI_card
+#     case 15: QConfig = qs.w_4bit_NI_card
 
 Nb, Mq, Vmin, Vmax, Rng, Qstep, YQ, Qtype = quantiser_configurations(QConfig)
+print(f'QConfig: {QConfig.name} LM: {lin.name} Nch: {str(NCH)} FS: {str(Fs)}Hz Xref: {str(Xref_FREQ)}Hz')
 
-print(f'QConfig: {str(QConfig)}')
-
-    
 # %%
 # Generate time vector
 match 2:
@@ -175,8 +279,8 @@ match 2:
         Nts = 1e6  # no. of time samples
         Np = np.ceil(Xref_FREQ*s*Nts).astype(int)  # no. of periods for carrier
     case 2:  # specify duration as number of periods of carrier
-        if SINAD_COMP_SEL == sinad_comp.FFT:
-            Np = 200  # no. of periods for carrier
+        if SINAD_COMP_SEL is SINAD_COMP.FFT:
+            Np = 50  # no. of periods for carrier
         else:
             Np = 5  # no. of periods for carrier (IEEE recommended for curve-fit is 5)
             # Np = 3
@@ -187,32 +291,36 @@ Ncyc = Np + 2*Npt
 t_end = Ncyc/Xref_FREQ  # time vector duration
 t = np.arange(0, t_end, Ts)  # time vector
 
-# TODO: ref_scale is misleading; should be % of baseline full range possible for a method
-# setting ref_scale=0, to be updated per method
-SC = sim_config(QConfig, lin, dac, Fs, t, Fc_lp, N_lp, 0, Xref_FREQ, Ncyc, Slew_rate)
-
 # Generate test/reference signal
 SIGNAL_MAXAMP = Rng/2 - Qstep  # make headroom for noise dither (see below)
 SIGNAL_OFFSET = -Qstep/2  # try to center given quantiser type
-Xref = test_signal(Xref_SCALE, SIGNAL_MAXAMP, Xref_FREQ, SIGNAL_OFFSET, t)
-Xref = (Xref_SCALE/100)*Xref  # scale reference (TODO: 100% here should be largest possible for each method)
+if lin is lin.STEP:
+    Xref = test_signal_square(Xref_SCALE, SIGNAL_MAXAMP, Xref_FREQ, SIGNAL_OFFSET, t)
+else:
+    Xref = test_signal_sine(Xref_SCALE, SIGNAL_MAXAMP, Xref_FREQ, SIGNAL_OFFSET, t)
+
+print(f'Xref min: {np.amin(Xref)} max: {np.amax(Xref)} SIGNAL_MAXAMP: {SIGNAL_MAXAMP}')
+
+# TODO: ref_scale is misleading; should be % of baseline full range possible for a method
+# setting ref_scale=0, to be updated per method
+SC = sim_config(QConfig, lin, dac, Fs, t, Fc_lp, N_lp, 0, Xref_FREQ, Ncyc, Slew_rate, Xref, Fs_Scope)
 
 # %% Configure and run linearisation methods
 # Each method should produce a vector of codes 'C'
 # that can be input to a given DAC circuit.
 
-match SC.lin.method:
+match SC.lin:
     case lm.BASELINE:  # baseline, only carrier
         # Generate unmodified DAC output without any corrections.
 
         if QConfig in [qs.w_6bit_2ch_SPICE, qs.w_16bit_2ch_SPICE, qs.w_10bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI, qs.w_10bit_ZTC_ARTI]:
             Nch = 2  # number of channels to use (averaging to reduce noise floor)
         else:
-            Nch = 1
+            Nch = NCH
         
         # Quantisation dither (eliminate harm. distortion from quantisation)
         Q_DITHER_ON = DITHER_BASELINE
-        Dq = dither_generation.gen_stochastic(t.size, Nch, Qstep, dither_generation.pdf.triangular_hp)
+        Dq = dither_generation.gen_stochastic(t.size, Nch, Qstep, dither_generation.pdf.triangular_white)
         Dq = Q_DITHER_ON*Dq
 
         # Add headroom for quantisation dither if needed
@@ -296,7 +404,7 @@ match SC.lin.method:
 
         # Re-quantisation dither
         Q_DITHER_ON = 1
-        Dq = dither_generation.gen_stochastic(t.size, Nch, Qstep, dither_generation.pdf.triangular_hp)
+        Dq = dither_generation.gen_stochastic(t.size, Nch, Qstep, dither_generation.pdf.triangular_white)
         Dq = Q_DITHER_ON*Dq[0]  # convert to 1d, add/remove dither
         
         # The feedback generates an actuation signal that may cause the
@@ -312,48 +420,42 @@ match SC.lin.method:
         elif QConfig == qs.w_16bit_2ch_SPICE:   HEADROOM = 1    # 16 bit DAC
         elif QConfig == qs.w_10bit_2ch_SPICE:   HEADROOM = 5    # 10 bit DAC
         elif QConfig == qs.w_16bit_6t_ARTI:     HEADROOM = 1    # 16 bit DAC
-        elif QConfig == qs.w_16bit_NI_card:     HEADROOM = 10
-        else: sys.exit('NSDCAL: Missing config.')
-
+        # elif QConfig == qs.w_16bit_NI_card:     HEADROOM = 15
+        # elif QConfig == qs.w_8bit_NI_card:      HEADROOM = 15
+        else: HEADROOM = 10 #sys.exit('NSDCAL: Missing config.')
+        print(f'HEADROOM: {HEADROOM}')
         Xscale = 100 - HEADROOM
+
+        # Repeat reference on all channels
+        # Xref = matlib.repmat(Xref, Nch, 1)
+
         X = (Xscale/100)*Xref  # input
 
         SC.ref_scale = Xscale  # save scale param.
         
-        ML = get_measured_levels(QConfig, SC.lin.method) # get_measured_levels(lm.NSDCAL)  # TODO: Redundant re-calling below in this case
+        ML = get_measured_levels(QConfig, SC.lin) # get_measured_levels(lm.NSDCAL)  # TODO: Redundant re-calling below in this case
 
         YQns = YQ[0]  # ideal output levels
         MLns = ML[0]  # measured output levels (convert from 2d to 1d)
 
         # Adding some "measurement/model error" in the levels
-        # 6-bit DAC
-        if QConfig in [qs.w_6bit_ARTI, qs.w_6bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI]:
-            ML_err_rng = Qstep/pow(2, 12) # (try to emulate 18-bit measurements (add 12 bit))
-        # 10-bit DAC
-        elif QConfig in [qs.w_10bit_2ch_SPICE, qs.w_10bit_ARTI, qs.w_10bit_ZTC_ARTI]:
-            ML_err_rng = Qstep/pow(2, 8) # (try to emulate 18-bit measurements (add 8 bit))
-        # 16-bit DAC
-        elif QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_16bit_6t_ARTI, qs.w_16bit_NI_card]:
-            ML_err_rng = Qstep/pow(2, 2) # (try to emulate 18-bit measurements (add 2 bit))
-        else:
-            sys.exit('NSDCAL: Unknown QConfig for ML error')
-        
-        MLns_err = np.random.uniform(-ML_err_rng, ML_err_rng, MLns.shape)
-        MLns = MLns + MLns_err
+        MLns_err = measurement_noise_range(Nb, 18, Qstep, MLns.shape)
+        MLns = MLns + M_NOISE * MLns_err
 
         QMODEL = 2  # 1: no calibration, 2: use calibration
         C = nsdcal(X, Dq, YQns, MLns, Qstep, Vmin, Nb, QMODEL)  ##### output codes
+        SC.xref = X
 
         # Zero input to sec. channel for sims with two channels (only need one channel)
         if QConfig in [qs.w_6bit_2ch_SPICE, qs.w_16bit_2ch_SPICE, qs.w_10bit_2ch_SPICE]:
             C = np.stack((C[0, :], np.zeros(C.shape[1])))
         
         # Print noise shaping amplitudes and occurency count (frequency of each value)
-        diff = np.abs(np.diff(C))
-        elements, counts = np.unique(diff, return_counts=True)
-        plt.stem(elements, counts)
-        plt.xlabel('Value')
-        plt.ylabel('Frequency')
+        # diff = np.abs(np.diff(C))
+        # elements, counts = np.unique(diff, return_counts=True)
+        # plt.stem(elements, counts)
+        # plt.xlabel('Value')
+        # plt.ylabel('Frequency')
         
     case lm.SHPD:  # stochastic high-pass noise dither
         # Adds a large(ish) high-pass filtered normally distributed noise dither.
@@ -685,6 +787,8 @@ match SC.lin.method:
         elif QConfig == qs.w_10bit_2ch_SPICE: HEADROOM = 0  # 10 bit DAC
         elif QConfig == qs.w_10bit_ARTI: HEADROOM = 0* 10  # 10 bit DAC
         elif QConfig == qs.w_10bit_ZTC_ARTI: HEADROOM = 0*10  # 10 bit DAC
+        elif QConfig == qs.w_16bit_NI_card: HEADROOM = 10
+        elif QConfig == qs.w_8bit_NI_card: HEADROOM = 0
         else: sys.exit('MPC: Missing config.')
 
         Xscale = 100 - HEADROOM
@@ -697,33 +801,12 @@ match SC.lin.method:
         
         # Unsigned integers representing the level codes
         # level_codes = np.arange(0, 2**Nb,1) # Levels:  0, 1, 2, .... 2^(Nb)
-        ML = get_measured_levels(QConfig, SC.lin.method)
+        ML = get_measured_levels(QConfig, SC.lin)
         MLns = ML[0]
-
-        # Adding some "measurement/model error" in the levels
-        #if QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI, qs.w_10bit_ZTC_ARTI]:
-        #    ML_err_rng = Qstep  # 16 bit DAC
-        #elif QConfig in [qs.w_6bit_ARTI, qs.w_6bit_2ch_SPICE, qs.w_10bit_ARTI]:
-        #    ML_err_rng = Qstep/1024 # 6 bit DAC
-        #else:
-        #    sys.exit('Unknown QConfig')
         
         # Adding some "measurement/model error" in the levels
-        # 6-bit DAC
-        if QConfig in [qs.w_6bit_ARTI, qs.w_6bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI]:
-            ML_err_rng = 0*Qstep/pow(2, 12) # (try to emulate 18-bit measurements (add 12 bit))
-        # 10-bit DAC
-        elif QConfig in [qs.w_10bit_2ch_SPICE, qs.w_10bit_ARTI, qs.w_10bit_ZTC_ARTI]:
-            ML_err_rng = Qstep/pow(2, 8) # (try to emulate 18-bit measurements (add 8 bit))
-        # 16-bit DAC
-        elif QConfig in [qs.w_16bit_SPICE, qs.w_16bit_ARTI, qs.w_16bit_2ch_SPICE, qs.w_16bit_6t_ARTI]:
-            ML_err_rng = Qstep/pow(2, 2) # (try to emulate 18-bit measurements (add 2 bit))
-        else:
-            sys.exit('MPC: Unknown QConfig for ML error')
-
-
-        MLns_err = np.random.uniform(-ML_err_rng, ML_err_rng, MLns.shape)
-        MLns_E = MLns + MLns_err
+        MLns_err = measurement_noise_range(Nb, 18, Qstep, MLns.shape)
+        MLns = MLns + M_NOISE * MLns_err
  
         # Reconstruction filter
         A1, B1, C1, D1 = mpc_filter_parameters(FS_CHOICE)
@@ -734,7 +817,7 @@ match SC.lin.method:
         # Run MPC Binary variables
         # MPC_OBJ = MPC_BIN(Nb, Qstep, QMODEL, A1, B1, C1, D1)
         MPC_OBJ = MPC(Nb, Qstep, QMODEL, A1, B1, C1, D1)
-        C = MPC_OBJ.get_codes(N_PRED, X, YQns, MLns_E)  ##### output codes
+        C = MPC_OBJ.get_codes(N_PRED, X, YQns, MLns)  ##### output codes
 
         t = t[0:C.size]
 
@@ -768,20 +851,12 @@ match SC.lin.method:
         YQns = YQ[0]
 
         # % Measured Levels
-        ML = get_measured_levels(QConfig, SC.lin.method) # get_measured_levels(lm.ILC)
+        ML = get_measured_levels(QConfig, SC.lin) # get_measured_levels(lm.ILC)
         MLns = ML[0] # one channel only
         
         # Adding some "measurement/model error" in the levels
-        if QConfig == qs.w_16bit_SPICE or QConfig == qs.w_16bit_ARTI or QConfig == qs.w_16bit_2ch_SPICE:
-            ML_err_rng = Qstep  # 16 bit DAC
-        elif QConfig == qs.w_6bit_ARTI or QConfig == qs.w_6bit_2ch_SPICE:
-            ML_err_rng = Qstep/1024 # 6 bit DAC
-        else:
-            sys.exit('NSDCAL: Unknown QConfig for ML error')
-        
-        # MLns_err = np.random.uniform(-ML_err_rng, ML_err_rng, MLns.shape)
-        # MLns = MLns + MLns_err
-
+        MLns_err = measurement_noise_range(Nb, 18, Qstep, MLns.shape)
+        MLns = MLns + M_NOISE * MLns_err
 
         # if QConfig == qws.w_6bit_ARTI or QConfig == qws.w_16bit_ARTI:
         #     MLns = np.flip(MLns)
@@ -861,9 +936,156 @@ match SC.lin.method:
         C = np.array([c_])
         print('** ILC simple end **')
 
+    case lm.STEP:  # step response
+        # Generate unmodified DAC output without any corrections.
+
+        if QConfig in [qs.w_6bit_2ch_SPICE, qs.w_16bit_2ch_SPICE, qs.w_10bit_2ch_SPICE, qs.w_6bit_ZTC_ARTI, qs.w_10bit_ZTC_ARTI]:
+            Nch = 2  # number of channels to use (averaging to reduce noise floor)
+        else:
+            Nch = 1
+        
+        # Quantisation dither (eliminate harm. distortion from quantisation)
+        # Q_DITHER_ON = DITHER_BASELINE
+        # Dq = dither_generation.gen_stochastic(t.size, Nch, Qstep, dither_generation.pdf.triangular_hp)
+        # Dq = Q_DITHER_ON*Dq
+
+        # Add headroom for quantisation dither if needed
+        HEADROOM = 0*(Qstep/Rng)
+        Xscale = 100 - HEADROOM
+        SC.ref_scale = Xscale  # save scale param.
+
+        # Repeat reference on all channels
+        Xref = matlib.repmat(Xref, Nch, 1)
+
+        X = (Xscale/100)*Xref #+ Dq  # quantiser input
+
+        Q = quantise_signal(X, Qstep, Qtype)  # uniform quantiser
+        C = generate_codes(Q, Nb, Qtype)  ##### output codes
+
+    case lm.MPC_RL_RM:
+        # Optimal filter parameters
+        Nch = 1
+
+        # Change the filter order in get_optFilterParams.m file if necessary. The default value is set as N_lp = 3.
+        match 2:
+            case 1:     # Calculates the optimal filter parmaters by running the MATLAB  code.
+                eng = matlab.engine.start_matlab()
+                B_LPF = eng.feval('get_optFilterParams', Fs, Fc)
+                b_lpf = np.array(B_LPF)[0]
+                a_lpf = np.array(B_LPF)[1]
+                A, B, C, D  = signal.tf2ss(b_lpf, a_lpf)  # Tf to state space
+            case 2:   # Optimal filter paramters for Fs = 1e6, Fc = 1e5, and N_lp =3
+                b_lpf = np.array([ 1.        , -0.74906276,  0.35356745, -0.05045204])
+                a_lpf = np.array([ 1.        , -1.76004281,  1.18289728, -0.27806204])
+                A, B, C, D  = signal.tf2ss(b_lpf, a_lpf)  # Tf to state space
+
+        # Quantiser levels : Ideal and Measured
+        # Ideal levels 
+        YQns = YQ.squeeze()     
+        # Measured Levels
+        MLns  =  get_measured_levels(QConfig).squeeze()
+
+        # Adding some "measurement/model error" in the levels
+        MLns_err = measurement_noise_range(Nb, 18, Qstep, MLns.shape)
+        MLns = MLns + M_NOISE * MLns_err
+
+        # Direct Quantization 
+        # C_DQ = (np.floor(Xref/Qstep +1/2)).astype(int)
+        # match QMODEL:
+        #     case 1:
+        #         Xcs_DQ = generate_dac_output(C_DQ, YQns)
+        #     case 2:
+        #         Xcs_DQ = generate_dac_output(C_DQ, MLns)
+
+        # Quantiser model: 1 - Ideal , 2- Calibrated
+        QMODEL = 2
+
+        # MHOQ Ratelimit
+        # N_PRED = 1      # Prediction horizon 
+        # Steps constraints for the MPC search space. MPC is constrained by:    current input- Step  <= current input <=  current input +  Step  
+        Step = MPC_step_limit
+
+        # if RUN_MPC:
+        MHOQ_RL = MHOQ_RLIM_RM(Nb, Qstep, QMODEL, A, B, C, D)
+        C_MHOQ = MHOQ_RL.get_codes(N_PRED, Xref, YQns, MLns[Nch-1,:], Step)
+        # match QMODEL:
+        #     case 1:
+        #         Xcs_MHOQ = generate_dac_output(C_MHOQ, YQns)
+        #     case 2:
+        #         Xcs_MHOQ = generate_dac_output(C_MHOQ, MLns) 
+
+        C = C_MHOQ
+
+        t = t[0:C.size]
+
+        # Zero input to sec. channel for sims with two channels (only need one channel)
+        if QConfig == qs.w_6bit_2ch_SPICE or QConfig == qs.w_16bit_2ch_SPICE or QConfig == qs.w_10bit_2ch_SPICE:
+            C = np.stack((C[0, :], np.zeros(C.shape[1])))
+
+    case lm.MPC_RL:
+        # Optimal filter parameters
+        Nch = 1
+
+        # Change the filter order in get_optFilterParams.m file if necessary. The default value is set as N_lp = 3.
+        match 2:
+            case 1:     # Calculates the optimal filter parmaters by running the MATLAB  code.
+                eng = matlab.engine.start_matlab()
+                B_LPF = eng.feval('get_optFilterParams', Fs, Fc)
+                b_lpf = np.array(B_LPF)[0]
+                a_lpf = np.array(B_LPF)[1]
+                A, B, C, D  = signal.tf2ss(b_lpf, a_lpf)  # Tf to state space
+            case 2:   # Optimal filter paramters for Fs = 1e6, Fc = 1e5, and N_lp =3
+                b_lpf = np.array([ 1.        , -0.74906276,  0.35356745, -0.05045204])
+                a_lpf = np.array([ 1.        , -1.76004281,  1.18289728, -0.27806204])
+                A, B, C, D  = signal.tf2ss(b_lpf, a_lpf)  # Tf to state space
+
+        # Quantiser model: 1 - Ideal , 2- Calibrated
+        QMODEL = 2
+
+        # Quantiser levels : Ideal and Measured
+        # Ideal levels 
+        YQns = YQ.squeeze()     
+        # Measured Levels
+        MLns  =  get_measured_levels(QConfig).squeeze()
+
+        # Adding some "measurement/model error" in the levels
+        MLns_err = measurement_noise_range(Nb, 18, Qstep, MLns.shape)
+        MLns = MLns + M_NOISE * MLns_err
+
+        # Direct Quantization 
+        # C_DQ = (np.floor(Xref/Qstep +1/2)).astype(int)
+        # match QMODEL:
+        #     case 1:
+        #         Xcs_DQ = generate_dac_output(C_DQ, YQns)
+        #     case 2:
+        #         Xcs_DQ = generate_dac_output(C_DQ, MLns)
+
+        # MHOQ Ratelimit
+        N_PRED = 1      # Prediction horizon 
+        # Steps constraints for the MPC search space. MPC is constrained by:    current input- Step  <= current input <=  current input +  Step  
+        Step = MPC_step_limit
+
+        # if RUN_MPC:
+        MHOQ_RL = MHOQ_RLIM(Nb, Qstep, QMODEL, A, B, C, D)
+        C_MHOQ = MHOQ_RL.get_codes(N_PRED, Xref, YQns, MLns[Nch-1,:], Step)
+        # match QMODEL:
+        #     case 1:
+        #         Xcs_MHOQ = generate_dac_output(C_MHOQ, YQns)
+        #     case 2:
+        #         Xcs_MHOQ = generate_dac_output(C_MHOQ, MLns) 
+
+        C = C_MHOQ
+
+        t = t[0:C.size]
+
+        # Zero input to sec. channel for sims with two channels (only need one channel)
+        if QConfig == qs.w_6bit_2ch_SPICE or QConfig == qs.w_16bit_2ch_SPICE or QConfig == qs.w_10bit_2ch_SPICE:
+            C = np.stack((C[0, :], np.zeros(C.shape[1])))
+
+    case lm.MPC_SL:
+        pass
 
 # %% Generate DAC output
-
 SC.nch = Nch  # update with no. channels set for simulation
 
 # Use the config to generate a hash; overwrite results for identical configurations 
@@ -889,7 +1111,7 @@ np.save(codes_f, C)
 
 # %% 
 if (DAC_MODEL_CHOICE == 1):
-    run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=PLOTS)
+    run_static_model_and_post_processing(RUN_LM, hash_stamp, MAKE_PLOT=PLOTS, SAVE=SAVE_ENOB)
 
 pass
 # %%

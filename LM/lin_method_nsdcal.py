@@ -76,8 +76,7 @@ def nsdcal(X, Dq, YQns, MLns, Qstep, Vmin, Nb, QMODEL):
         # Re-quantizer (mid-tread)
         q = math.floor(u/Qstep + 0.5)  # quantize
         c = q - math.floor(Vmin/Qstep)  # code
-        C[0, i] = c  # save code
-
+        
         # Saturation (can't index out of bounds)
         if c > 2**Nb - 1:
             c = 2**Nb - 1
@@ -91,6 +90,8 @@ def nsdcal(X, Dq, YQns, MLns, Qstep, Vmin, Nb, QMODEL):
             if satcnt >= 10:
                 print(f'warning: neg. sat. -- cnt: {satcnt}')
         
+        C[0, i] = c  # save code
+
         # Output models
         yi = YQns[c]  # ideal levels
         ym = MLns[c]  # measured levels
@@ -101,7 +102,7 @@ def nsdcal(X, Dq, YQns, MLns, Qstep, Vmin, Nb, QMODEL):
                 e[0] = yi - w
             case 2:  # measured/calibrated
                 e[0] = ym - w
-        
+         
         # Noise-shaping filter
         xns = Ad@xns + Bd@e  # update state
         yns = Cd@xns  # update filter output
