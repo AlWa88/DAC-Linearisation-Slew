@@ -110,7 +110,7 @@ class JSON_results():
         # Add LM name/number to all rows
 
         for DM in range(2):
-            for LM in range(9):
+            for LM in range(13): #range(9):
                 self.results_dict[DC_JSON_key][DM][LM][2] = LM + 1
 
     def update_format(self):
@@ -147,7 +147,7 @@ class JSON_results():
         for DM in range(2):
             DM_list = []
             empty_list.append(DM_list)
-            for LM in range(9):
+            for LM in range(13): #range(9):
                 LM_list = []
                 DM_list.append(LM_list)
                 for data in range(11):
