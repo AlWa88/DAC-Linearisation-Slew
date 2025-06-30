@@ -3,7 +3,6 @@ from utils.quantiser_configurations import qs
 from utils.results import JSON_results
 from LM.lin_method_util import lm, dm
 
-
 def update_JSON():
     JR = JSON_results()
 

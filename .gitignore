@@ -10,5 +10,5 @@ __pycache__/
 
 # Exclude results from repo
 generated_codes/
-results/
-
+results/code
+results/enob
